@@ -9,6 +9,7 @@ export interface ArtOpts {
   dc?: string; // dimension line colour
   tc?: string; // dimension text colour
   view?: 'side' | 'top' | 'pack';
+  ref?: string; // part number printed on the box label (pack view)
 }
 
 const S = '#2A3036';
@@ -30,7 +31,7 @@ function hashId(s: string) {
 }
 
 /* ---------- bolts and screws ---------- */
-export function boltInner(t: BoltType, d: number, L: number, mat: MatKey, o: ArtOpts = {}) {
+export function boltInner(t: BoltType, d: number, L: number, mat: MatKey, o: ArtOpts = {}, partial = false) {
   const H = o.H || 220, W = 360, dims = o.dims !== false, F = MATFILL[mat];
   const D = o.dc || 'var(--ink-2)', T = o.tc || 'var(--ink)';
   const g = GEO[t](d), p = t === 'wood' ? d * 0.5 : PITCH[d];
@@ -45,7 +46,7 @@ export function boltInner(t: BoltType, d: number, L: number, mat: MatKey, o: Art
   const head = t === 'flat' || t === 'wood'
     ? `M${x0},${cy - hh}L${xs},${cy - rd}L${xs},${cy + rd}L${x0},${cy + hh}Z`
     : `M${x0 + 1.5},${cy - hhh}H${xs}V${cy + hhh}H${x0 + 1.5}L${x0},${cy + hhh - 1.5}V${cy - hhh + 1.5}Z`;
-  const thr = t === 'socket' || (t === 'flat' && L > 40) ? Math.min(L, 2 * d + 6) : L;
+  const thr = partial || t === 'socket' || (t === 'flat' && L > 40) ? Math.min(L, 2 * d + 6) : L;
   let s = `<defs><clipPath id="${id}"><path d="${tip}"/></clipPath><clipPath id="${id2}"><path d="${head}"/></clipPath></defs>`;
   s += `<path d="${tip}" fill="${F}" stroke="${S}" stroke-width="1.4" stroke-linejoin="round"/>`;
   s += `<g clip-path="url(#${id})"><rect x="${xs}" y="${cy - rd}" width="${L * sc}" height="${rd * 0.7}" fill="#fff" opacity=".32"/><rect x="${xs}" y="${cy + rd * 0.4}" width="${L * sc}" height="${rd * 0.6}" fill="#000" opacity=".16"/>`;
@@ -84,8 +85,7 @@ function topInner(t: BoltType, d: number, mat: MatKey, H: number, D: string, T: 
   return s;
 }
 
-function packInner(t: BoltType, mat: MatKey, d: number, L: number) {
-  const ref = refOf(t, mat, d, L), n = packOf(t);
+function packInner(t: BoltType, mat: MatKey, d: number, L: number, n = packOf(t), ref = refOf(t, mat, d, L)) {
   return `<g transform="translate(9,-30) scale(.95)"><path d="M60,120L180,92L300,120L180,150z" fill="#D8B27A" stroke="${S}" stroke-width="1.4" stroke-linejoin="round"/><path d="M60,120V250L180,282V150z" fill="#C69A62" stroke="${S}" stroke-width="1.4" stroke-linejoin="round"/><path d="M300,120V250L180,282V150z" fill="#B58850" stroke="${S}" stroke-width="1.4" stroke-linejoin="round"/><path d="M165,112L195,102L215,110L185,120z" fill="#EFE3C8" opacity=".8"/>
   <path d="M76,170L164,194V252L76,228z" fill="#F4F1EA" stroke="${S}" stroke-width="1.2"/>
   <g font-family="IBM Plex Mono,monospace" fill="#1B1F23"><text x="84" y="190" font-size="8" font-weight="600" transform="rotate(16 84 190)">${ref}</text><text x="84" y="204" font-size="7" transform="rotate(16 84 204)">${tl(t, d)} × ${L}</text><text x="86" y="219" font-size="9" font-weight="700" transform="rotate(16 86 219)">${n} PCS</text></g></g>`;
@@ -96,6 +96,12 @@ const st = `stroke="${S}" stroke-width="1.5" stroke-linejoin="round" stroke-line
 const hexPoly = (cx: number, cy: number, r: number) => [0, 1, 2, 3, 4, 5].map((i) => `${(cx + r * Math.cos((i * Math.PI) / 3)).toFixed(1)},${(cy + r * Math.sin((i * Math.PI) / 3)).toFixed(1)}`).join(' ');
 
 const OTHER: Record<string, (c: string | undefined, a: ArtSpec) => string> = {
+  rod: (_c, a) => {
+    const r = Math.min(22, 4 + (a.d || 8) * 0.9);
+    let th = '';
+    for (let x = 34; x < 326; x += 7) th += `M${x},${110 + r}l4,${-2 * r}`;
+    return `<rect x="30" y="${110 - r}" width="300" height="${2 * r}" fill="${MATFILL[a.mat || 'ZN']}" ${st}/><rect x="30" y="${110 - r}" width="300" height="${r * 0.6}" fill="#fff" opacity=".3"/><path d="${th}" stroke="${S}" stroke-width=".9" opacity=".55"/>`;
+  },
   nut: (_c, a) => `<polygon points="${hexPoly(180, 110, 66)}" fill="${MATFILL[a.mat || 'A2']}" ${st}/><circle cx="180" cy="110" r="56" fill="none" stroke="${S}" opacity=".5"/><circle cx="180" cy="110" r="30" fill="var(--bg)" ${st}/><circle cx="180" cy="110" r="24" fill="none" stroke="${S}" stroke-dasharray="3 2" opacity=".7"/>`,
   washer: (_c, a) => `<circle cx="180" cy="110" r="72" fill="${MATFILL[a.mat || 'A2']}" ${st}/><circle cx="180" cy="110" r="64" fill="none" stroke="${S}" opacity=".35"/><circle cx="180" cy="110" r="32" fill="var(--bg)" ${st}/>`,
   anchor: (c) => {
@@ -143,8 +149,8 @@ export function artSVG(art: ArtSpec, o: ArtOpts = {}, label = 'Product drawing')
   const H = o.H || 220;
   if (art.kind === 'bolt' && art.t && art.mat && art.d && art.L) {
     if (o.view === 'top') return wrap(topInner(art.t, art.d, art.mat, H, o.dc || 'var(--ink-2)', o.tc || 'var(--ink)'), H, 'Head view of ' + label);
-    if (o.view === 'pack') return wrap(packInner(art.t, art.mat, art.d, art.L), H, 'Box of ' + label);
-    return wrap(boltInner(art.t, art.d, art.L, art.mat, { ...o, H }), H, label);
+    if (o.view === 'pack') return wrap(packInner(art.t, art.mat, art.d, art.L, art.n, o.ref), H, 'Box of ' + label);
+    return wrap(boltInner(art.t, art.d, art.L, art.mat, { ...o, H }, art.pt), H, label);
   }
   const fn = OTHER[art.kind] || OTHER.washer;
   return wrap(fn(art.color, art), H, label, (H - 220) / 2);

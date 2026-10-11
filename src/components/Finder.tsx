@@ -3,10 +3,11 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { artSVG } from '@/lib/art';
-import { MATNAME, TYPES, cap, tl } from '@/lib/standards';
+import { MATNAME, TYPES, cap, refOf, tl } from '@/lib/standards';
 import type { BoltType, MatKey } from '@/lib/standards';
+import type { FinderRow } from '@/lib/catalog';
 
-export interface FinderItem { t: BoltType; mat: MatKey; d: number; L: number; slug: string; stock: number }
+interface FinderItem { t: BoltType; mat: MatKey; d: number; L: number; slug: string; stock: number }
 
 const TYPE_LABEL: Record<BoltType, string> = {
   hex: 'Hex bolt DIN 933',
@@ -15,8 +16,10 @@ const TYPE_LABEL: Record<BoltType, string> = {
   wood: 'Chipboard, Pozidriv',
 };
 
-export default function Finder({ items }: { items: FinderItem[] }) {
+/** Size finder for standard boxes of bolts and screws. Rows are compact tuples so the whole range stays small in the page. */
+export default function Finder({ rows }: { rows: FinderRow[] }) {
   const router = useRouter();
+  const items = useMemo<FinderItem[]>(() => rows.map(([t, mat, d, L, s]) => ({ t: t as BoltType, mat: mat as MatKey, d, L, slug: refOf(t as BoltType, mat as MatKey, d, L).toLowerCase(), stock: s })), [rows]);
   const [type, setType] = useState<BoltType>('hex');
   const [mat, setMat] = useState<MatKey>('A2');
   const [d, setD] = useState(8);
@@ -29,7 +32,7 @@ export default function Finder({ items }: { items: FinderItem[] }) {
   const curD = diams.includes(d) ? d : diams[Math.min(1, diams.length - 1)];
   const lengths = useMemo(() => forType.filter((i) => i.mat === curMat && i.d === curD).sort((a, b) => a.L - b.L), [forType, curMat, curD]);
 
-  const want = Math.min(120, Math.max(10, Number(len) || 40));
+  const want = Math.min(200, Math.max(6, Number(len) || 40));
   const nearest = lengths.length ? lengths.reduce((a, b) => (Math.abs(b.L - want) < Math.abs(a.L - want) ? b : a)) : null;
   const inStock = lengths.filter((l) => l.stock > 0).length;
   const svg = nearest ? artSVG({ kind: 'bolt', t: type, mat: curMat, d: curD, L: nearest.L }, { H: 220, dims: false }, 'Preview of the selected screw') : '';
@@ -65,7 +68,7 @@ export default function Finder({ items }: { items: FinderItem[] }) {
               {diams.map((x) => <option key={x} value={x}>{tl(type, x)}</option>)}
             </select></div>
           <div className="field"><label htmlFor="f-l">Length (mm)</label>
-            <input className="input mono" id="f-l" type="number" min={10} max={120} step={5} value={len} inputMode="numeric" onChange={(e) => setLen(e.target.value)} /></div>
+            <input className="input mono" id="f-l" type="number" min={6} max={200} step={5} value={len} inputMode="numeric" onChange={(e) => setLen(e.target.value)} /></div>
         </div>
       </div>
       <button className="btn btn-primary btn-lg finder-go" type="submit">View this size <svg width="20" height="20" aria-hidden="true"><use href="#i-arrow" /></svg></button>

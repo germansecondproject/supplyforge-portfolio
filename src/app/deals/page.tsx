@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import ListingView from '@/components/ListingView';
-import { getCatalog } from '@/lib/catalog';
+import { getListing, getTaxonomy } from '@/lib/catalog';
 import { parseParams } from '@/lib/query';
 
 export const metadata: Metadata = { title: 'Deals' };
@@ -18,14 +18,14 @@ export default function Page(props: PageProps<'/deals'>) {
 }
 
 async function Content({ searchParams }: PageProps<'/deals'>) {
-  const catalog = await getCatalog();
   const { filters, sort, page } = parseParams(await searchParams);
-  const pool = catalog.products.filter((p) => p.off > 0);
+  const f = { ...filters, offers: false, sub: undefined };
+  const [{ brands }, listing] = await Promise.all([getTaxonomy(), getListing({ offersOnly: true, filters: f, sort, page })]);
   return (
     <>
       <nav className="crumbs" aria-label="Breadcrumb"><Link href="/">Home</Link><span aria-hidden="true">/</span><span aria-current="page">Deals</span></nav>
       <div className="list-head"><h1>Autumn deals</h1><p className="muted">Up to −20 % on selected lines, while stock lasts.</p></div>
-      <ListingView catalog={catalog} pool={pool} basePath="/deals" filters={{ ...filters, offers: false, sub: undefined }} sort={sort} page={page} />
+      <ListingView listing={listing} brands={brands} basePath="/deals" filters={f} sort={sort} />
     </>
   );
 }

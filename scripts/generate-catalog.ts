@@ -1,14 +1,15 @@
-/* Generates the synthetic catalogue.
+/* Generates the synthetic catalogue: the 188 original products first (ids 1–188, unchanged), then the extended range from
+ * scripts/ranges.ts up to TARGET products.
  *   node scripts/generate-catalog.ts
- * Outputs: data/catalog.json (local fallback) and supabase/seed.sql (database seed). */
+ * Outputs: data/catalog.json (the original 188 products, used when Supabase is not configured) and supabase/seed/*.sql. */
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { artSVG } from '../src/lib/art.ts';
 import {
   TYPES, MATNAME, MATGRADE, MATDESC, PITCH, GEO, packOf, tl, cap, refOf, priceBolt, priceNut, priceWasher,
   boltTitle, boltBoxWeight,
 } from '../src/lib/standards.ts';
 import type { BoltType, MatKey } from '../src/lib/standards.ts';
 import type { Brand, Catalog, Category, Family, Product, Recommendation, StockLine, Subcategory } from '../src/lib/types.ts';
+import { NEW_BRANDS, NEW_SUBCATEGORIES, buildRanges } from './ranges.ts';
 
 /* ---------- deterministic randomness ---------- */
 function hash(s: string) {
@@ -48,12 +49,14 @@ const subcategories: Subcategory[] = [
   ['locks', 'padlocks', 'Padlocks'], ['locks', 'hinges', 'Hinges'],
   ['abrasives', 'discs', 'Cutting & grinding discs'], ['abrasives', 'sanding', 'Sanding'],
   ['electrical', 'cable-management', 'Cable management'], ['electrical', 'connectors', 'Connectors & tape'], ['electrical', 'outlets', 'Outlets'],
+  ...NEW_SUBCATEGORIES,
 ].map(([category, slug, name], i) => ({ category, slug, name, position: i + 1 }));
 
 const brands: Brand[] = [
   { slug: 'forge-pro', name: 'Forge Pro', country: 'ES' }, { slug: 'alpenfix', name: 'Alpenfix', country: 'AT' }, { slug: 'nordgrip', name: 'Nordgrip', country: 'SE' },
   { slug: 'ferrum-co', name: 'Ferrum & Co', country: 'DE' }, { slug: 'torque-lab', name: 'Torque Lab', country: 'DE' }, { slug: 'brava-pro', name: 'Brava Pro', country: 'IT' },
   { slug: 'anclatec', name: 'Anclatec', country: 'ES' }, { slug: 'vektor', name: 'Vektor', country: 'PL' }, { slug: 'kestrel', name: 'Kestrel', country: 'GB' },
+  ...NEW_BRANDS,
 ];
 const brandName = Object.fromEntries(brands.map((b) => [b.slug, b.name]));
 
@@ -64,7 +67,7 @@ type Base = Pick<Product, 'id' | 'slug' | 'ref' | 'name' | 'category' | 'sub' | 
 const bases: Base[] = [];
 let nextId = 1;
 
-function finish(p: Omit<Base, 'id' | 'slug' | 'rating' | 'reviews' | 'off' | 'stock' | 'size'> & { stock?: number; off?: number; size?: string | null }): Base {
+function finish(p: Omit<Base, 'id' | 'slug' | 'rating' | 'reviews' | 'off' | 'stock' | 'size'> & { stock?: number; off?: number; size?: string | null; reviews?: number }): Base {
   const r = rng(p.ref);
   const full: Base = {
     ...p,
@@ -76,6 +79,7 @@ function finish(p: Omit<Base, 'id' | 'slug' | 'rating' | 'reviews' | 'off' | 'st
     rating: Math.round((4.3 + r() * 0.6) * 10) / 10,
     reviews: Math.floor(8 + r() * 290),
   };
+  if (p.reviews !== undefined) full.reviews = p.reviews;
   bases.push(full);
   return full;
 }
@@ -280,6 +284,27 @@ for (const o of others) {
 }
 
 
+/* ---------- extended range ---------- */
+const LEGACY = bases.length; // the original catalogue keeps ids 1–188 and all of its generated values
+const TARGET = 10000;
+{
+  const have = new Set(bases.map((b) => b.ref));
+  let items = buildRanges(brandName).filter((i) => !have.has(i.ref));
+  // trim to the target by dropping a deterministic sample, never a whole family
+  const extra = items.length - (TARGET - LEGACY);
+  if (extra > 0) {
+    const famSize = new Map<string, number>();
+    for (const i of items) famSize.set(i.family, (famSize.get(i.family) || 0) + 1);
+    const drop = new Set(items.filter((i) => famSize.get(i.family)! > 6).map((i) => i.ref).sort((a, b) => hash('trim' + a) - hash('trim' + b)).slice(0, extra));
+    items = items.filter((i) => !drop.has(i.ref));
+  }
+  for (const { famName, ...i } of items) {
+    if (famName && !FAMILY_NAME[i.family]) FAMILY_NAME[i.family] = famName;
+    // newer lines have fewer reviews: most of the range is long tail
+    finish({ ...i, reviews: Math.max(1, Math.floor(Math.pow(rng('rv' + i.ref)(), 2.2) * 240)) });
+  }
+}
+
 /* ---------- enrichment: codes, family, logistics, media, promo, stock ---------- */
 const BOLT_NAMES: Record<string, string> = Object.fromEntries((Object.keys(TYPES) as BoltType[]).map((t) => ['bolt-' + t, `${TYPES[t].name}${TYPES[t].norm === 'Wood thread' ? '' : ' ' + TYPES[t].norm}`]));
 
@@ -292,8 +317,15 @@ const LOGISTICS: Record<string, [number, number, number, number]> = {
   sheet: [290, 240, 10, 0.4], cable: [210, 60, 20, 0.12], connector: [120, 80, 40, 0.25], outlet: [90, 90, 45, 0.12],
 };
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
+// customs codes for the extended range outside fasteners (the original products leave them empty)
+const HS: Record<string, string> = { anchors: '3926.90', 'hand-tools': '8205.59', 'power-tools': '8467.29', safety: '6116.10', locks: '8301.10', abrasives: '6804.22', electrical: '8536.69' };
 function logistics(b: Base): { dims: [number, number, number]; kg: number } {
   const k = b.art.kind;
+  if (k === 'rod') return { dims: [(b.len ?? 1000) + 20, 40, 40], kg: r3(Math.max(0.02, b.kg ?? 0.3)) };
+  if (b.id > LEGACY && b.kg === undefined && b.pack > 1 && !['anchor', 'sheet', 'cable', 'connector', 'bits', 'tape', 'disc'].includes(k)) {
+    const [l, w, h, kg] = LOGISTICS[k] ?? [150, 100, 50, 0.2];
+    return { dims: [l, w, Math.round(h * Math.min(4, Math.sqrt(b.pack)))], kg: r3(kg * Math.pow(b.pack, 0.8)) };
+  }
   if (k === 'bolt' || k === 'nut' || k === 'washer') {
     const kg = b.kg ?? (k === 'nut' ? 0.6 * Math.pow((b.d || 8) / 8, 2.6) : 0.45 * Math.pow((b.d || 8) / 8, 2.2));
     const dims: [number, number, number] = kg < 1.5 ? [180, 110, 60] : kg < 4 ? [230, 150, 80] : [280, 180, 100];
@@ -325,6 +357,8 @@ const WAREHOUSES = [
   { id: 1, code: 'MAD', name: 'Madrid central', city: 'Getafe', days: 1 },
   { id: 2, code: 'BCN', name: 'Barcelona hub', city: "L'Hospitalet de Llobregat", days: 2 },
   { id: 3, code: 'SVQ', name: 'Seville south', city: 'Dos Hermanas', days: 3 },
+  { id: 4, code: 'VLC', name: 'Valencia east', city: 'Riba-roja de Túria', days: 2 },
+  { id: 5, code: 'BIO', name: 'Bilbao north', city: 'Basauri', days: 2 },
 ];
 const TODAY = new Date('2026-10-11T00:00:00Z');
 const dayPlus = (n: number) => new Date(TODAY.getTime() + n * 864e5).toISOString().slice(0, 10);
@@ -343,8 +377,11 @@ const products: Product[] = bases.map((b) => {
   const bulky = b.category === 'power-tools';
 
   // stock: split the generated total over 1–3 warehouses; Madrid is sometimes empty so delivery time varies
-  const n = 1 + Math.floor(r() * 3);
-  const whs = WAREHOUSES.slice(0, n);
+  // the original products keep their split over the first three warehouses; the extended range uses all five
+  const legacy = b.id <= LEGACY;
+  const n = 1 + Math.floor(r() * (legacy ? 3 : 4));
+  const start = legacy ? 0 : Math.floor(r() * WAREHOUSES.length);
+  const whs = legacy ? WAREHOUSES.slice(0, n) : Array.from({ length: n }, (_, i) => WAREHOUSES[(start + i) % WAREHOUSES.length]);
   if (r() < 0.18 && n > 1) whs.reverse();
   let left = b.stock;
   const lines: StockLine[] = [];
@@ -365,7 +402,7 @@ const products: Product[] = bases.map((b) => {
   const restock = lines.map((l) => l.restock_date).filter(Boolean).sort()[0] ?? null;
 
   const promoRoll = r();
-  const promo = promoRoll < 0.12 ? PROMOS[b.category][Math.floor(r() * PROMOS[b.category].length)] : null;
+  const promo = promoRoll < (legacy ? 0.12 : 0.05) ? PROMOS[b.category][Math.floor(r() * PROMOS[b.category].length)] : null;
   const unavailable = !KEEP_AVAILABLE.has(b.ref) && r() < 0.04;
   const brand = brandName[b.brand];
   const siblings = famCount.get(family)! - 1;
@@ -398,7 +435,7 @@ const products: Product[] = bases.map((b) => {
     image_alt: `Technical drawing of ${b.name}`,
     tags: [b.category, b.sub, ...(b.std ? [b.std] : []), ...(b.off ? ['offer'] : []), ...(promo ? ['promo'] : [])],
     origin_country: brands.find((x) => x.slug === b.brand)!.country,
-    hs_code: b.category === 'fasteners' ? (b.art.kind === 'washer' ? '7318.22' : b.art.kind === 'nut' ? '7318.16' : '7318.15') : null,
+    hs_code: b.category === 'fasteners' ? (b.art.kind === 'washer' ? '7318.22' : b.art.kind === 'nut' ? '7318.16' : '7318.15') : legacy ? null : HS[b.category] ?? null,
     // codes, weight and package size live in their own columns; the product page adds them to the table
     spec_table: b.spec_table.filter(([k]) => k !== 'Part number' && k !== 'Weight per box'),
   };
@@ -406,34 +443,19 @@ const products: Product[] = bases.map((b) => {
 const bySku = new Map(products.map((p) => [p.ref, p]));
 
 /* ---------- families ---------- */
-const families: Family[] = [...new Map(products.map((p) => [p.family, p])).values()].map((p) => {
-  const k = p.art.kind;
-  const axes = k === 'bolt' ? ['material', 'diameter_mm', 'length_mm'] : k === 'nut' || k === 'washer' ? ['material', 'diameter_mm'] : famCount.get(p.family)! > 1 ? ['size_label'] : [];
+const famMembers = new Map<string, Product[]>();
+for (const p of products) {
+  if (!famMembers.has(p.family)) famMembers.set(p.family, []);
+  famMembers.get(p.family)!.push(p);
+}
+const families: Family[] = [...famMembers.values()].map(([p]) => {
+  const axes = p.mat && p.d !== null ? ['material', 'diameter_mm', ...(p.len !== null ? ['length_mm'] : [])] : famMembers.get(p.family)!.length > 1 ? ['size_label'] : [];
   return { slug: p.family, name: FAMILY_NAME[p.family] || BOLT_NAMES[p.family] || p.name, category: p.category, subcategory: p.sub, variant_axes: axes, description: null };
 });
 
 /* ---------- recommendations ---------- */
 const recommendations: Recommendation[] = [];
-for (const p of products) {
-  const out: [Product | undefined, Recommendation['kind']][] = [];
-  const mat = p.mat === 'A2' || p.mat === 'A4' ? 'A2' : 'ZN';
-  const dd = p.d ? Math.min(12, Math.max(6, p.d)) : 8;
-  if (p.art.kind === 'bolt' && p.art.t !== 'wood') {
-    out.push([bySku.get(`SF-985-${mat}-${dd}`), 'accessory'], [bySku.get(`SF-125-${mat}-${dd}`), 'accessory'], [bySku.get('SF-LOC-50'), 'bought_together']);
-    const alt = products.find((x) => x.family === p.family && x.d === p.d && x.len === p.len && x.mat !== p.mat);
-    out.push([alt, 'alternative']);
-  } else if (p.art.kind === 'bolt') {
-    out.push([bySku.get('SF-BIT-PZ2'), 'accessory'], [bySku.get('SF-NYL-8x40'), 'bought_together'], [bySku.get('SF-DRL-18A'), 'bought_together']);
-  } else if (p.art.kind === 'nut' || p.art.kind === 'washer') {
-    out.push([bySku.get(`SF-933-${mat}-${dd}x40`), 'bought_together'], [bySku.get(`SF-125-${mat}-${dd}`), 'accessory'], [bySku.get('SF-LOC-50'), 'bought_together']);
-  } else {
-    const r = rng('rec' + p.ref);
-    const sib = products.filter((x) => x.family === p.family && x.id !== p.id).slice(0, 1);
-    sib.forEach((x) => out.push([x, 'alternative']));
-    const pool = products.filter((x) => x.category === p.category && x.sub !== p.sub && x.art.kind !== 'bolt');
-    const wide = products.filter((x) => x.category !== p.category && x.art.kind !== 'bolt' && x.price < 30);
-    for (const src of [pool, pool, wide, wide]) if (src.length) out.push([src[Math.floor(r() * src.length)], 'bought_together']);
-  }
+function pushRecs(p: Product, out: [Product | undefined, Recommendation['kind']][]) {
   const seen = new Set([p.id]);
   let pos = 1;
   for (const [x, kind] of out) {
@@ -443,44 +465,131 @@ for (const p of products) {
   }
 }
 
-/* ---------- output: local catalogue, product images, database seed ---------- */
-const catalog: Catalog = { categories, subcategories, brands, families, products, recommendations };
-writeFileSync(new URL('../data/catalog.json', import.meta.url), JSON.stringify(catalog));
-
-const imgDir = new URL('../public/images/products/', import.meta.url);
-rmSync(imgDir, { recursive: true, force: true });
-mkdirSync(imgDir, { recursive: true });
-for (const p of products) {
-  // standalone files cannot read the page's CSS variables, so resolve them to the light theme colours
-  const svg = artSVG(p.art, { H: 270, dc: '#5B6670', tc: '#14181B' }, p.name)
-    .replace(/var\(--bg\)/g, '#FFFFFF').replace(/var\(--ink-2\)/g, '#5B6670').replace(/var\(--ink\)/g, '#14181B')
-    .replace(/(<svg[^>]*>)/, '$1<rect width="100%" height="100%" fill="#FFFFFF"/>');
-  writeFileSync(new URL(p.slug + '.svg', imgDir), svg);
+// the original products keep the recommendations they were generated with, chosen among the original catalogue
+const legacyProducts = products.slice(0, LEGACY);
+for (const p of legacyProducts) {
+  const out: [Product | undefined, Recommendation['kind']][] = [];
+  const mat = p.mat === 'A2' || p.mat === 'A4' ? 'A2' : 'ZN';
+  const dd = p.d ? Math.min(12, Math.max(6, p.d)) : 8;
+  if (p.art.kind === 'bolt' && p.art.t !== 'wood') {
+    out.push([bySku.get(`SF-985-${mat}-${dd}`), 'accessory'], [bySku.get(`SF-125-${mat}-${dd}`), 'accessory'], [bySku.get('SF-LOC-50'), 'bought_together']);
+    const alt = legacyProducts.find((x) => x.family === p.family && x.d === p.d && x.len === p.len && x.mat !== p.mat);
+    out.push([alt, 'alternative']);
+  } else if (p.art.kind === 'bolt') {
+    out.push([bySku.get('SF-BIT-PZ2'), 'accessory'], [bySku.get('SF-NYL-8x40'), 'bought_together'], [bySku.get('SF-DRL-18A'), 'bought_together']);
+  } else if (p.art.kind === 'nut' || p.art.kind === 'washer') {
+    out.push([bySku.get(`SF-933-${mat}-${dd}x40`), 'bought_together'], [bySku.get(`SF-125-${mat}-${dd}`), 'accessory'], [bySku.get('SF-LOC-50'), 'bought_together']);
+  } else {
+    const r = rng('rec' + p.ref);
+    const sib = legacyProducts.filter((x) => x.family === p.family && x.id !== p.id).slice(0, 1);
+    sib.forEach((x) => out.push([x, 'alternative']));
+    const pool = legacyProducts.filter((x) => x.category === p.category && x.sub !== p.sub && x.art.kind !== 'bolt');
+    const wide = legacyProducts.filter((x) => x.category !== p.category && x.art.kind !== 'bolt' && x.price < 30);
+    for (const src of [pool, pool, wide, wide]) if (src.length) out.push([src[Math.floor(r() * src.length)], 'bought_together']);
+  }
+  pushRecs(p, out);
 }
+
+// extended range: matching nuts and washers for bolts, bolts for nuts, family alternatives and same-category picks for the rest
+const small = (p: Product) => p.family.endsWith('-diy');
+const matFor = (m: string | null) => (m === 'A2' || m === 'A4' ? m : 'ZN');
+const nutFor = (p: Product, d: number) => {
+  const n = bySku.get(`SF-985-${matFor(p.mat)}-${d}`) ?? bySku.get(`SF-985-ZN-${d}`);
+  return small(p) && n ? bySku.get(n.ref + '-P' + (d <= 6 ? 20 : 10)) ?? n : n;
+};
+const washerFor = (p: Product, d: number) => {
+  const w = bySku.get(`SF-125-${matFor(p.mat)}-${d}`) ?? bySku.get(`SF-125-ZN-${d}`);
+  return small(p) && w ? bySku.get(w.ref + '-P' + (d <= 6 ? 30 : 20)) ?? w : w;
+};
+const boltFor = (p: Product, d: number) =>
+  (famMembers.get('bolt-hex') ?? []).filter((x) => x.d === d && x.mat === matFor(p.mat)).sort((a, b) => Math.abs((a.len ?? 0) - 4 * d) - Math.abs((b.len ?? 0) - 4 * d))[0];
+const catPool = new Map<string, Product[]>();
+for (const x of products) if (x.art.kind !== 'bolt' && x.category !== 'fasteners') {
+  if (!catPool.has(x.category)) catPool.set(x.category, []);
+  catPool.get(x.category)!.push(x);
+}
+const cheap = products.filter((x) => x.category !== 'fasteners' && x.price < 30);
+for (const p of products.slice(LEGACY)) {
+  const out: [Product | undefined, Recommendation['kind']][] = [];
+  const k = p.art.kind;
+  const fam = famMembers.get(p.family)!;
+  const alt = (fn: (x: Product) => boolean) => fam.find((x) => x.id !== p.id && fn(x));
+  if (k === 'bolt' && p.art.t !== 'wood' && p.d) {
+    out.push([nutFor(p, p.d), 'accessory'], [washerFor(p, p.d), 'accessory'], [bySku.get('SF-LOC-50'), 'bought_together'], [alt((x) => x.d === p.d && x.len === p.len), 'alternative']);
+  } else if (k === 'bolt') {
+    out.push([bySku.get(p.d && p.d >= 6 ? 'SF-BIT-NRD-T40-25' : 'SF-BIT-PZ2'), 'accessory'], [bySku.get('SF-NYL-8x40'), 'bought_together'], [bySku.get('SF-DRL-18A'), 'bought_together'], [alt((x) => x.d === p.d && x.len === p.len), 'alternative']);
+  } else if ((k === 'nut' || k === 'washer') && p.d) {
+    out.push([boltFor(p, p.d), 'bought_together'], [k === 'nut' ? washerFor(p, p.d) : nutFor(p, p.d), 'accessory'], [bySku.get('SF-LOC-50'), 'bought_together'], [alt((x) => x.d === p.d), 'alternative']);
+  } else if (k === 'rod' && p.d && p.mat) {
+    out.push([bySku.get(`SF-934-${p.mat}-${p.d}`), 'accessory'], [washerFor(p, p.d), 'accessory'], [bySku.get('SF-RES-VE300'), 'bought_together'], [alt((x) => x.d === p.d && x.len === p.len), 'alternative']);
+  } else {
+    const r = rng('rec' + p.ref);
+    const i = fam.indexOf(p);
+    out.push([fam[i + 1] ?? fam[i - 1], 'alternative']);
+    const pool = catPool.get(p.category) ?? [];
+    for (const src of [pool, pool, cheap, cheap]) {
+      for (let tries = 0; tries < 6 && src.length; tries++) {
+        const x = src[Math.floor(r() * src.length)];
+        if (x.sub !== p.sub && x.family !== p.family) { out.push([x, 'bought_together']); break; }
+      }
+    }
+  }
+  pushRecs(p, out);
+}
+
+/* ---------- output: local sample catalogue and database seed files ---------- */
+// The bundled fallback holds the original catalogue only; the full range lives in Postgres.
+const sampleIds = new Set(legacyProducts.map((p) => p.id));
+const sample: Catalog = {
+  categories,
+  subcategories: subcategories.filter((s) => legacyProducts.some((p) => p.category === s.category && p.sub === s.slug)),
+  brands: brands.filter((b) => legacyProducts.some((p) => p.brand === b.slug)),
+  families: families.filter((f) => legacyProducts.some((p) => p.family === f.slug)),
+  products: legacyProducts,
+  recommendations: recommendations.filter((r) => sampleIds.has(r.product_id) && sampleIds.has(r.recommended_id)),
+};
+writeFileSync(new URL('../data/catalog.json', import.meta.url), JSON.stringify(sample));
 
 const q = (s: string | null | undefined) => (s === null || s === undefined ? 'null' : "'" + s.replace(/'/g, "''") + "'");
 const j = (v: unknown) => q(JSON.stringify(v)) + '::jsonb';
 const arr = (v: string[]) => (v.length ? `array[${v.map(q).join(',')}]` : "'{}'") + '::text[]';
-const sql: string[] = ['-- Generated by scripts/generate-catalog.ts. Do not edit by hand. Re-running it replaces all catalogue, stock, sales and order data.', 'begin;'];
-sql.push('truncate public.sales, public.stock, public.warehouses, public.product_recommendations, public.order_lines, public.orders, public.products, public.product_families, public.brands, public.subcategories, public.categories restart identity cascade;');
-sql.push('insert into public.categories (slug,name,tone,icon,blurb,position) values\n' + categories.map((c) => `(${q(c.slug)},${q(c.name)},${q(c.tone)},${q(c.icon)},${q(c.blurb)},${c.position})`).join(',\n') + ';');
-sql.push('insert into public.subcategories (category,slug,name,position) values\n' + subcategories.map((s) => `(${q(s.category)},${q(s.slug)},${q(s.name)},${s.position})`).join(',\n') + ';');
-sql.push('insert into public.brands (slug,name,country) values\n' + brands.map((b) => `(${q(b.slug)},${q(b.name)},${q(b.country)})`).join(',\n') + ';');
-sql.push('insert into public.product_families (slug,name,category,subcategory,variant_axes) values\n' + families.map((f) => `(${q(f.slug)},${q(f.name)},${q(f.category)},${q(f.subcategory)},${arr(f.variant_axes)})`).join(',\n') + ';');
-for (let i = 0; i < products.length; i += 40) {
-  sql.push(
-    'insert into public.products (id,item_code,sku,ean,slug,name,description,highlights,key_specs,specifications,category,subcategory,brand,family,standard,material,diameter_mm,length_mm,size_label,' +
-      'pack_length_mm,pack_width_mm,pack_height_mm,weight_kg,image_url,image_alt,art,pack_qty,sale_unit,volume_pricing,min_order_qty,price_ex_vat,discount_pct,unavailable,promo_enabled,promo_text,rating,review_count,tags,origin_country,hs_code) values\n' +
-      products.slice(i, i + 40).map((p) => '(' + [
-        p.id, p.item_code, q(p.ref), q(p.ean), q(p.slug), q(p.name), "''", j(p.blurb), j(p.specs), j(p.spec_table), q(p.category), q(p.sub), q(p.brand), q(p.family),
-        q(p.std), q(p.mat), p.d ?? 'null', p.len ?? 'null', q(p.size_label), p.dims_mm[0], p.dims_mm[1], p.dims_mm[2], p.weight_kg, "''", "''", j(p.art),
-        p.pack, q(p.unit), p.tier, p.min_order_qty, p.price, Math.round(p.off * 10000) / 100, p.unavailable, p.promo !== null, q(p.promo), p.rating, p.reviews, "'{}'", q(p.origin_country), q(p.hs_code),
-      ].join(',') + ')').join(',\n') + ';',
-  );
-}
-sql.push(`select setval(pg_get_serial_sequence('public.products','id'), ${products.length});`);
-// derived text is composed here rather than shipped in the inserts; it matches what the generator writes to data/catalog.json
-sql.push(`update public.products p set
+const rows = <T>(list: T[], n: number) => Array.from({ length: Math.ceil(list.length / n) }, (_, i) => list.slice(i * n, i * n + n));
+
+const seedDir = new URL('../supabase/seed/', import.meta.url);
+rmSync(seedDir, { recursive: true, force: true });
+mkdirSync(seedDir, { recursive: true });
+const files: [string, string[]][] = [];
+const HEAD = '-- Generated by scripts/generate-catalog.ts. Do not edit by hand.';
+
+files.push(['00_reset.sql', [
+  HEAD,
+  '-- Empties every store table. Run it only to rebuild the data from scratch; the other files add what is missing and can be re-run.',
+  'truncate public.sales, public.stock, public.warehouses, public.product_recommendations, public.order_lines, public.orders, public.products, public.product_families, public.brands, public.subcategories, public.categories restart identity cascade;',
+]]);
+files.push(['01_taxonomy.sql', [
+  HEAD,
+  'insert into public.categories (slug,name,tone,icon,blurb,position) values\n' + categories.map((c) => `(${q(c.slug)},${q(c.name)},${q(c.tone)},${q(c.icon)},${q(c.blurb)},${c.position})`).join(',\n') + '\non conflict (slug) do nothing;',
+  'insert into public.subcategories (category,slug,name,position) values\n' + subcategories.map((s) => `(${q(s.category)},${q(s.slug)},${q(s.name)},${s.position})`).join(',\n') + '\non conflict (category, slug) do nothing;',
+  'insert into public.brands (slug,name,country) values\n' + brands.map((b) => `(${q(b.slug)},${q(b.name)},${q(b.country)})`).join(',\n') + '\non conflict (slug) do nothing;',
+  'insert into public.warehouses (id,code,name,city,country) values\n' + WAREHOUSES.map((w) => `(${w.id},${q(w.code)},${q(w.name)},${q(w.city)},'ES')`).join(',\n') + '\non conflict (id) do nothing;',
+  `select setval(pg_get_serial_sequence('public.warehouses','id'), greatest(${WAREHOUSES.length}, (select max(id) from public.warehouses)));`,
+  'insert into public.product_families (slug,name,category,subcategory,variant_axes) values\n' + families.map((f) => `(${q(f.slug)},${q(f.name)},${q(f.category)},${q(f.subcategory)},${arr(f.variant_axes)})`).join(',\n') + '\non conflict (slug) do nothing;',
+]]);
+const COLS = 'id,item_code,sku,ean,slug,name,description,highlights,key_specs,specifications,category,subcategory,brand,family,standard,material,diameter_mm,length_mm,size_label,' +
+  'pack_length_mm,pack_width_mm,pack_height_mm,weight_kg,image_url,image_alt,art,pack_qty,sale_unit,volume_pricing,min_order_qty,price_ex_vat,discount_pct,unavailable,promo_enabled,promo_text,rating,review_count,tags,origin_country,hs_code';
+rows(products, 1000).forEach((chunk, n) => {
+  files.push([`1${n}_products.sql`, [HEAD, ...rows(chunk, 100).map((part) =>
+    `insert into public.products (${COLS}) values\n` + part.map((p) => '(' + [
+      p.id, p.item_code, q(p.ref), q(p.ean), q(p.slug), q(p.name), "''", j(p.blurb), j(p.specs), j(p.spec_table), q(p.category), q(p.sub), q(p.brand), q(p.family),
+      q(p.std), q(p.mat), p.d ?? 'null', p.len ?? 'null', q(p.size_label), p.dims_mm[0], p.dims_mm[1], p.dims_mm[2], p.weight_kg, "''", "''", j(p.art),
+      p.pack, q(p.unit), p.tier, p.min_order_qty, p.price, Math.round(p.off * 10000) / 100, p.unavailable, p.promo !== null, q(p.promo), p.rating, p.reviews, "'{}'", q(p.origin_country), q(p.hs_code),
+    ].join(',') + ')').join(',\n') + '\non conflict (id) do nothing;')]]);
+});
+files.push(['20_product_text.sql', [
+  HEAD,
+  `select setval(pg_get_serial_sequence('public.products','id'), greatest(${products.length}, (select max(id) from public.products)));`,
+  '-- Text derived from other columns is composed here rather than shipped in the inserts; it matches the generator output.',
+  `update public.products p set
   description = (select string_agg(h, ' ' order by i) from jsonb_array_elements_text(p.highlights) with ordinality as t(h, i))
     || ' ' || p.name || ' by ' || b.name || '.'
     || case when fc.n > 1 then ' Part of the ' || f.name || ' range, available in ' || fc.n || ' versions.' else '' end,
@@ -489,12 +598,19 @@ sql.push(`update public.products p set
   tags = array[p.category, p.subcategory] || case when p.standard is null then '{}'::text[] else array[p.standard] end
     || case when p.discount_pct > 0 then array['offer'] else '{}'::text[] end || case when p.promo_enabled then array['promo'] else '{}'::text[] end
 from public.brands b, public.product_families f, (select family, count(*)::int as n from public.products group by family) fc
-where b.slug = p.brand and f.slug = p.family and fc.family = p.family;`);
-sql.push('insert into public.product_recommendations (product_id,recommended_id,kind,position) values\n' + recommendations.map((r) => `(${r.product_id},${r.recommended_id},${q(r.kind)},${r.position})`).join(',') + ';');
-sql.push('insert into public.warehouses (id,code,name,city,country) values\n' + WAREHOUSES.map((w) => `(${w.id},${q(w.code)},${q(w.name)},${q(w.city)},'ES')`).join(',\n') + ';');
-sql.push(`select setval(pg_get_serial_sequence('public.warehouses','id'), ${WAREHOUSES.length});`);
-sql.push('insert into public.stock (product_id,warehouse_id,location,quantity,reserved,reorder_point,shipping_days,restock_date) values\n' + stockRows.map((s) => `(${s.product_id},${s.warehouse_id},${q(s.location)},${s.quantity},${s.reserved},${s.reorder_point},${s.shipping_days},${q(s.restock_date)})`).join(',') + ';');
-sql.push(`-- One synthetic year of daily sales per product and channel. Popularity follows review count; trade (b2b) drops at weekends; about 5 % of sale days have a return.
+where b.slug = p.brand and f.slug = p.family and fc.family = p.family
+  and p.description is distinct from (select string_agg(h, ' ' order by i) from jsonb_array_elements_text(p.highlights) with ordinality as t(h, i))
+    || ' ' || p.name || ' by ' || b.name || '.'
+    || case when fc.n > 1 then ' Part of the ' || f.name || ' range, available in ' || fc.n || ' versions.' else '' end;`,
+]]);
+files.push(['30_recommendations.sql', [HEAD, ...rows(recommendations, 2000).map((part) =>
+  'insert into public.product_recommendations (product_id,recommended_id,kind,position) values\n' + part.map((r) => `(${r.product_id},${r.recommended_id},${q(r.kind)},${r.position})`).join(',') + '\non conflict do nothing;')]]);
+files.push(['31_stock.sql', [HEAD, ...rows(stockRows, 2000).map((part) =>
+  'insert into public.stock (product_id,warehouse_id,location,quantity,reserved,reorder_point,shipping_days,restock_date) values\n' +
+    part.map((s) => `(${s.product_id},${s.warehouse_id},${q(s.location)},${s.quantity},${s.reserved},${s.reorder_point},${s.shipping_days},${q(s.restock_date)})`).join(',\n') + '\non conflict do nothing;')]]);
+files.push(['40_sales.sql', [HEAD, `-- One synthetic year of daily sales per product and channel, for products that have none yet.
+-- Popularity follows review count; the extended range sells less often than the original ${LEGACY} products. Trade (b2b) drops at weekends; about 5 % of sale days have a return.
+-- On a hosted database with a statement timeout, run it in slices by adding "and p.id between X and Y" to the inner where clause.
 select setseed(0.2026);
 insert into public.sales (product_id, sale_date, channel, units_sold, units_returned, revenue_ex_vat, refunds_ex_vat)
 select product_id, sale_date, channel, units, returned, round(units * unit_price, 2), round(returned * unit_price, 2)
@@ -505,16 +621,83 @@ from (
       round(p.sale_price_ex_vat * ch.price_mult, 2) as unit_price,
       1 + floor(random() * ch.size * (0.4 + p.review_count / 150.0))::int as units,
       random() as r_ret,
-      random() < least(0.9, ch.prob * (0.3 + p.review_count / 120.0)
+      random() < least(0.9, ch.prob * (0.3 + p.review_count / 120.0) * (case when p.id <= ${LEGACY} then 1 else 0.4 end)
         * (1 + 0.25 * sin(2 * pi() * extract(doy from d) / 365.0))
         * (case when ch.channel = 'b2b' and extract(isodow from d) >= 6 then 0.15 else 1 end)
         * (case when p.unavailable and d > date '2026-08-01' then 0 else 1 end)) as sold
-    from public.products p
+    from (select * from public.products p where not exists (select 1 from public.sales s where s.product_id = p.id)) p
     cross join generate_series(date '2025-10-11', date '2026-10-10', interval '1 day') d
     cross join (values ('web', 1.0, 0.18, 3), ('b2b', 0.92, 0.12, 14), ('marketplace', 1.06, 0.06, 2)) ch(channel, price_mult, prob, size)
   ) x
   where x.sold
-) y;`);
-sql.push('commit;');
-writeFileSync(new URL('../supabase/seed.sql', import.meta.url), sql.join('\n\n') + '\n');
-console.log(`products: ${products.length}, families: ${families.length}, recommendations: ${recommendations.length}, stock rows: ${stockRows.length}, unavailable: ${products.filter((p) => p.unavailable).length}, promo: ${products.filter((p) => p.promo).length}`);
+) y;`]]);
+files.push(['50_orders.sql', [HEAD, readOrdersSql()]]);
+
+function readOrdersSql() {
+  return `-- A year of past orders from fictitious customers (example.com addresses). Skipped when seeded orders already exist.
+-- Lines favour popular products; prices follow the store rules (discount, volume tiers for boxes, shipping, 21 % VAT).
+select setseed(0.3141);
+create temp table seed_orders on commit drop as
+select g as n,
+  timestamptz '2025-10-11 07:00:00+02' + floor(random() * 365) * interval '1 day' + (random() * 12) * interval '1 hour' as created_at,
+  case when random() < 0.42 then 'biz' else 'diy' end as mode,
+  random() as r_ship, random() as r_pay, random() as r_status,
+  1 + floor(random() * 50)::int as fi, 1 + floor(random() * 50)::int as li, 1 + floor(random() * 30)::int as ci, 1 + floor(random() * 24)::int as si,
+  1 + floor(random() * 120)::int as house, 1 + floor(random() * 5)::int as nlines
+from generate_series(1, 6000) g
+where not exists (select 1 from public.orders where customer->>'source' = 'seed');
+
+create temp table seed_pool on commit drop as
+select row_number() over (order by p.id, k) as i, p.id, p.sku, p.name, p.sale_price_ex_vat, p.volume_pricing
+from public.products p
+join (select product_id from public.stock group by product_id having sum(quantity - reserved) > 0) s on s.product_id = p.id
+cross join generate_series(1, 1 + p.review_count / 40) k
+where not p.unavailable;
+
+create temp table seed_lines on commit drop as
+select o.n, l.line, sp.id as product_id, sp.sku, sp.name, q.qty,
+  round(sp.sale_price_ex_vat * case when not sp.volume_pricing then 1 when q.qty >= 50 then 0.82 when q.qty >= 10 then 0.905 else 1 end, 2) as unit_price
+from seed_orders o
+cross join lateral generate_series(1, o.nlines) l(line)
+cross join lateral (select 1 + floor(random() * (select count(*) from seed_pool))::int as pick, random() as rq, o.n + l.line * 0 as dep) r
+join seed_pool sp on sp.i = r.pick
+cross join lateral (select case when o.mode = 'biz' then 1 + floor(r.rq * r.rq * 60)::int else 1 + floor(r.rq * r.rq * r.rq * 6)::int end as qty) q;
+
+with totals as (
+  select n, sum(round(unit_price * qty, 2)) as subtotal from seed_lines group by n
+), numbered as (
+  select o.*, t.subtotal, row_number() over (order by o.created_at, o.n) as rn,
+    case when o.r_ship < 0.12 then 'pickup' when o.r_ship < 0.22 then 'exp' else 'std' end as ship,
+    case when o.mode = 'biz' and o.r_pay < 0.55 then 'invoice' when o.r_pay < 0.75 then 'card' else 'transfer' end as pay
+  from seed_orders o join totals t using (n)
+), base as (select coalesce(max(last_value), 104800) as start from public.order_number_seq)
+insert into public.orders (id, number, mode, customer, ship_method, payment_method, subtotal, shipping, vat, total, status, created_at)
+select md5('seed-order-' || o.n)::uuid,
+  'SF-' || to_char(o.created_at, 'YY') || '-' || (b.start + o.rn),
+  o.mode,
+  jsonb_build_object(
+    'name', (array['Lucía','Hugo','Martina','Mateo','Sofía','Leo','Valeria','Daniel','Julia','Pablo','Paula','Álvaro','Carla','Adrián','Elena','Manuel','Alba','Diego','Noa','Javier','Irene','Marcos','Sara','Iván','Laura','Jorge','Marta','Sergio','Clara','Raúl','Ana','David','Carmen','Andrés','Nerea','Óscar','Lara','Rubén','Inés','Víctor','Eva','Tomás','Rocío','Gonzalo','Celia','Íker','Aitana','Mario','Lola','Bruno'])[o.fi]
+      || ' ' || (array['García','Martínez','López','Sánchez','González','Gómez','Fernández','Moreno','Jiménez','Pérez','Rodríguez','Navarro','Ruiz','Díaz','Serrano','Hernández','Muñoz','Sáez','Romero','Rubio','Alfaro','Molina','Lozano','Castillo','Picazo','Ortega','Morales','Ortiz','Delgado','Marín','Iglesias','Santos','Castro','Garrido','Vidal','Cano','Ramos','Gil','Prieto','Méndez','Calvo','Vega','Cruz','Herrera','Peña','Flores','Campos','León','Márquez','Soler'])[o.li],
+    'email', 'customer' || o.n || '@example.com',
+    'company', case when o.mode = 'biz' then (array['Reformas','Instalaciones','Montajes','Talleres','Construcciones','Carpintería','Electricidad','Fontanería'])[1 + o.n % 8] || ' ' || (array['García','Martínez','López','Sánchez','González','Gómez','Fernández','Moreno','Jiménez','Pérez'])[1 + o.li % 10] || ' SL' end,
+    'address', (array['Calle Mayor','Avenida de la Constitución','Calle Real','Calle del Sol','Paseo de la Estación','Calle Industria','Polígono Las Américas, nave','Calle San Juan','Avenida de Andalucía','Calle de la Paz','Calle Nueva','Ronda Sur','Calle del Carmen','Calle Ancha','Avenida de Europa','Calle Toledo','Calle Valencia','Calle Alcalá','Camino Viejo','Calle Goya','Calle Princesa','Polígono El Pino, nave','Calle Cervantes','Avenida del Puerto'])[o.si] || ' ' || o.house,
+    'city', (array['Madrid','Barcelona','Valencia','Sevilla','Zaragoza','Málaga','Murcia','Palma','Bilbao','Alicante','Córdoba','Valladolid','Vigo','Gijón','Granada','Vitoria','A Coruña','Elche','Getafe','Badalona','Cartagena','Terrassa','Pamplona','Almería','Burgos','Santander','Castellón','Albacete','Logroño','Salamanca'])[o.ci],
+    'postcode', lpad(((array[28,8,46,41,50,29,30,7,48,3,14,47,36,33,18,1,15,3,28,8,30,8,31,4,9,39,12,2,26,37])[o.ci] * 1000 + 1 + o.house % 80)::text, 5, '0'),
+    'source', 'seed'),
+  o.ship, o.pay, o.subtotal, s.shipping, round((o.subtotal + s.shipping) * 0.21, 2), o.subtotal + s.shipping + round((o.subtotal + s.shipping) * 0.21, 2),
+  case when o.created_at > timestamptz '2026-10-08' then 'received' when o.created_at > timestamptz '2026-09-30' then 'shipped'
+    when o.r_status < 0.03 then 'cancelled' when o.r_status < 0.07 then 'returned' else 'delivered' end,
+  o.created_at
+from numbered o
+cross join base b
+cross join lateral (select case o.ship when 'pickup' then 0 when 'exp' then 24.90 else case when o.subtotal >= 150 then 0 else 9.90 end end as shipping) s;
+
+insert into public.order_lines (order_id, product_id, sku, name, qty, unit_price, line_total)
+select md5('seed-order-' || n)::uuid, product_id, sku, name, qty, unit_price, round(unit_price * qty, 2)
+from seed_lines order by n, line;
+
+select setval('public.order_number_seq', greatest((select last_value from public.order_number_seq), (select coalesce(max(split_part(number, '-', 3)::bigint), 0) from public.orders)));`;
+}
+
+for (const [name, parts] of files) writeFileSync(new URL(name, seedDir), ['begin;', ...parts, 'commit;'].join('\n\n') + '\n');
+console.log(`products: ${products.length}, families: ${families.length}, recommendations: ${recommendations.length}, stock rows: ${stockRows.length}, unavailable: ${products.filter((p) => p.unavailable).length}, promo: ${products.filter((p) => p.promo).length}, files: ${files.length}`);

@@ -1,6 +1,7 @@
 'use server';
 
-import { getCatalog, supabaseClient, supabaseConfigured } from '@/lib/catalog';
+import { getProductsBySku, supabaseClient, supabaseConfigured } from '@/lib/catalog';
+import { normalizeSku } from '@/lib/query';
 import { unitFor } from '@/lib/pricing';
 import { FREE_FROM, IVA, SHIP_EXP, SHIP_STD } from '@/lib/standards';
 import type { ArtSpec } from '@/lib/types';
@@ -22,11 +23,10 @@ export interface PartCheck {
 
 /** Quick order: check part numbers against the catalogue. */
 export async function checkParts(refs: string[]): Promise<PartCheck[]> {
-  const { products } = await getCatalog();
-  const idx = new Map(products.map((p) => [p.ref.toLowerCase(), p]));
-  return refs.slice(0, 60).map((raw) => {
-    const ref = String(raw).trim();
-    const p = idx.get(ref.toLowerCase());
+  const list = refs.slice(0, 60).map((r) => String(r).trim());
+  const idx = new Map((await getProductsBySku(list)).map((p) => [p.ref, p]));
+  return list.map((ref) => {
+    const p = idx.get(normalizeSku(ref));
     if (!p) return { ref, ok: false, error: 'Unknown part number' };
     if (p.unavailable) return { ref: p.ref, ok: false, error: 'Not available' };
     if (p.stock <= 0) return { ref: p.ref, ok: false, error: 'Out of stock' };
@@ -85,15 +85,14 @@ export async function placeOrder(input: OrderInput): Promise<{ ok: true; order: 
     return { ok: true, order: { ...o, lines: o.lines.map(({ sku, ...l }) => ({ ...l, ref: sku })), source: 'supabase' } };
   }
 
-  const { products } = await getCatalog();
-  const idx = new Map(products.map((p) => [p.ref, p]));
+  const idx = new Map((await getProductsBySku(lines.map((l) => l.ref))).map((p) => [p.ref, p]));
   if (input.pay === 'invoice' && input.mode !== 'biz') return { ok: false, error: friendly('invoice_requires_business') };
   if (!/^\S+@\S+\.\S+$/.test(input.customer.email || '')) return { ok: false, error: friendly('invalid_email') };
   if (!input.customer.address || !input.customer.city || !input.customer.postcode) return { ok: false, error: friendly('invalid_address') };
   const out: OrderResult['lines'] = [];
   let sub = 0;
   for (const l of lines) {
-    const p = idx.get(l.ref);
+    const p = idx.get(normalizeSku(l.ref));
     if (!p) return { ok: false, error: friendly('unknown_product:' + l.ref) };
     if (p.unavailable) return { ok: false, error: friendly('unavailable:' + p.ref) };
     if (p.stock < l.qty) return { ok: false, error: friendly(`insufficient_stock:${p.ref}:${p.stock}`) };

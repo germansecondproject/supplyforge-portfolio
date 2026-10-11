@@ -7,6 +7,8 @@ export interface ArtSpec {
   d?: number;
   L?: number;
   color?: string;
+  pt?: boolean; // partial thread (DIN 931)
+  n?: number; // pieces in the box, when it differs from the standard box
 }
 
 export interface Category {
@@ -100,6 +102,18 @@ export interface Product {
   blurb: string[];
   spec_table: [string, string][];
   art: ArtSpec;
+}
+
+/** The fields of a family member needed for the size selector and the "other sizes" rail. */
+export interface FamilyMember {
+  id: number;
+  slug: string;
+  mat: MatKey | null;
+  d: number | null;
+  len: number | null;
+  size: string | null;
+  stock: number;
+  unavailable: boolean;
 }
 
 export interface Catalog {

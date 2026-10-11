@@ -1,7 +1,7 @@
 /* Fastener standards data: shared by the catalogue generator, product pages and technical drawings. No imports on purpose. */
 
 export type BoltType = 'hex' | 'socket' | 'flat' | 'wood';
-export type MatKey = 'A2' | 'A4' | 'ZN' | 'BK' | 'ZY';
+export type MatKey = 'A2' | 'A4' | 'ZN' | 'BK' | 'ZY' | 'HG';
 
 export const TYPES: Record<BoltType, { name: string; norm: string; code: string; iso: string; slug: string }> = {
   hex: { name: 'Hex bolt', norm: 'DIN 933', code: '933', iso: 'ISO 4017', slug: 'hex-bolts' },
@@ -16,18 +16,20 @@ export const MATNAME: Record<MatKey, string> = {
   ZN: 'zinc plated',
   BK: 'black 12.9',
   ZY: 'yellow zinc',
+  HG: 'hot-dip galvanised',
 };
-export const MATFILL: Record<MatKey, string> = { A2: '#D3D8DC', A4: '#C7CDD2', ZN: '#BCC5CC', BK: '#3B4348', ZY: '#E3B73B' };
-export const MATGRADE: Record<MatKey, string> = { A2: 'A2-70', A4: 'A4-80', ZN: 'class 8.8', BK: 'class 12.9', ZY: 'class 4.8' };
+export const MATFILL: Record<MatKey, string> = { A2: '#D3D8DC', A4: '#C7CDD2', ZN: '#BCC5CC', BK: '#3B4348', ZY: '#E3B73B', HG: '#A7B0B6' };
+export const MATGRADE: Record<MatKey, string> = { A2: 'A2-70', A4: 'A4-80', ZN: 'class 8.8', BK: 'class 12.9', ZY: 'class 4.8', HG: 'class 8.8' };
 export const MATDESC: Record<MatKey, string> = {
   A2: 'A2 stainless steel (AISI 304), resists corrosion indoors and outdoors.',
   A4: 'A4 stainless steel (AISI 316), suited to coastal air and light chemicals.',
   BK: 'Class 12.9 steel with a black oxide finish, for maximum-strength joints.',
   ZY: 'Steel with yellow zinc passivation, for indoor use.',
   ZN: 'Blue zinc-plated steel, standard protection for indoor and covered outdoor use.',
+  HG: 'Hot-dip galvanised class 8.8 steel, a thick zinc layer for exposed outdoor structures.',
 };
 
-export const PITCH: Record<number, number> = { 4: 0.7, 5: 0.8, 6: 1, 8: 1.25, 10: 1.5, 12: 1.75 };
+export const PITCH: Record<number, number> = { 3: 0.5, 4: 0.7, 5: 0.8, 6: 1, 8: 1.25, 10: 1.5, 12: 1.75, 14: 2, 16: 2, 20: 2.5, 24: 3 };
 
 export interface Geo {
   k: number; // head height
@@ -35,11 +37,14 @@ export interface Geo {
   key: number; // drive size
 }
 export const GEO: Record<BoltType, (d: number) => Geo> = {
-  hex: (d) => ({ k: ({ 6: 4, 8: 5.3, 10: 6.4, 12: 7.5 } as Record<number, number>)[d], hw: ({ 6: 10, 8: 13, 10: 16, 12: 18 } as Record<number, number>)[d], key: ({ 6: 10, 8: 13, 10: 16, 12: 18 } as Record<number, number>)[d] }),
-  socket: (d) => ({ k: d, hw: ({ 6: 10, 8: 13, 10: 16, 12: 18 } as Record<number, number>)[d], key: ({ 6: 5, 8: 6, 10: 8, 12: 10 } as Record<number, number>)[d] }),
-  flat: (d) => ({ k: ({ 5: 2.8, 6: 3.3, 8: 4.4, 10: 5.5 } as Record<number, number>)[d], hw: ({ 5: 10, 6: 12, 8: 16, 10: 20 } as Record<number, number>)[d], key: ({ 5: 3, 6: 4, 8: 5, 10: 6 } as Record<number, number>)[d] }),
-  wood: (d) => ({ k: ({ 4: 2.4, 5: 3, 6: 3.6 } as Record<number, number>)[d], hw: ({ 4: 8, 5: 10, 6: 12 } as Record<number, number>)[d], key: ({ 4: 2, 5: 2, 6: 3 } as Record<number, number>)[d] }),
+  hex: (d) => ({ k: ({ 3: 2, 4: 2.8, 5: 3.5, 6: 4, 8: 5.3, 10: 6.4, 12: 7.5, 14: 8.8, 16: 10, 20: 12.5, 24: 15 } as Record<number, number>)[d], hw: ({ 3: 5.5, 4: 7, 5: 8, 6: 10, 8: 13, 10: 16, 12: 18, 14: 22, 16: 24, 20: 30, 24: 36 } as Record<number, number>)[d], key: ({ 3: 5.5, 4: 7, 5: 8, 6: 10, 8: 13, 10: 16, 12: 18, 14: 22, 16: 24, 20: 30, 24: 36 } as Record<number, number>)[d] }),
+  socket: (d) => ({ k: d, hw: ({ 3: 5.5, 4: 7, 5: 8.5, 6: 10, 8: 13, 10: 16, 12: 18, 14: 21, 16: 24, 20: 30 } as Record<number, number>)[d], key: ({ 3: 2.5, 4: 3, 5: 4, 6: 5, 8: 6, 10: 8, 12: 10, 14: 12, 16: 14, 20: 17 } as Record<number, number>)[d] }),
+  flat: (d) => ({ k: ({ 3: 1.7, 4: 2.3, 5: 2.8, 6: 3.3, 8: 4.4, 10: 5.5, 12: 6.5, 16: 7.5 } as Record<number, number>)[d], hw: ({ 3: 6, 4: 8, 5: 10, 6: 12, 8: 16, 10: 20, 12: 24, 16: 30 } as Record<number, number>)[d], key: ({ 3: 2, 4: 2.5, 5: 3, 6: 4, 8: 5, 10: 6, 12: 8, 16: 10 } as Record<number, number>)[d] }),
+  wood: (d) => ({ k: ({ 3: 1.8, 3.5: 2.1, 4: 2.4, 4.5: 2.7, 5: 3, 6: 3.6, 8: 4.8, 10: 6 } as Record<number, number>)[d], hw: ({ 3: 6, 3.5: 7, 4: 8, 4.5: 9, 5: 10, 6: 12, 8: 14.5, 10: 18.5 } as Record<number, number>)[d], key: ({ 3: 1, 3.5: 2, 4: 2, 4.5: 2, 5: 2, 6: 3, 8: 4, 10: 5 } as Record<number, number>)[d] }),
 };
+
+/** Pozidriv size for a chipboard screw diameter. */
+export const pzFor = (d: number) => (d <= 3 ? 'PZ1' : d >= 6 ? 'PZ3' : 'PZ2');
 
 export const packOf = (t: BoltType) => (t === 'wood' ? 200 : 100);
 export const tl = (t: BoltType, d: number) => (t === 'wood' ? 'Ø' + d : 'M' + d);
@@ -48,7 +53,7 @@ export const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 export const refOf = (t: BoltType, mat: MatKey, d: number, L: number) => `SF-${TYPES[t].code}-${mat}-${d}x${L}`;
 
 const TM: Record<BoltType, number> = { hex: 1, socket: 0.82, flat: 0.9, wood: 0.45 };
-const MM: Record<MatKey, number> = { A2: 1, A4: 1.38, ZN: 0.42, BK: 0.55, ZY: 0.4 };
+const MM: Record<MatKey, number> = { A2: 1, A4: 1.38, ZN: 0.42, BK: 0.55, ZY: 0.4, HG: 0.6 };
 export const priceBolt = (t: BoltType, mat: MatKey, d: number, L: number) =>
   Math.max(3.5, Math.round(38.9 * TM[t] * MM[mat] * Math.pow(d / 8, 1.5) * (0.3 + (0.7 * L) / 40) * 10) / 10);
 export const priceNut = (kind: 'nut' | 'lock', mat: MatKey, d: number) =>
@@ -61,9 +66,8 @@ export function boltTitle(t: BoltType, mat: MatKey, d: number, L: number) {
 }
 
 /* weight of a box in kg, steel 7.9 g/cm3 */
-export function boltBoxWeight(t: BoltType, d: number, L: number) {
+export function boltBoxWeight(t: BoltType, d: number, L: number, pack = packOf(t)) {
   const gg = GEO[t](d);
-  const pack = packOf(t);
   return ((Math.PI * Math.pow(d / 20, 2) * (L / 10) * 7.9 + Math.PI * Math.pow(gg.hw / 20, 2) * (gg.k / 10) * 7.9 * 0.8) * pack) / 1000;
 }
 
