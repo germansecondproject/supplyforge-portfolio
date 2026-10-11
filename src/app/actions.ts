@@ -56,6 +56,7 @@ export interface OrderResult {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 function friendly(msg: string): string {
+  if (/permission denied|jwt expired/i.test(msg)) return friendly('sign_in_required');
   const [code, a, b] = msg.split(':');
   switch (code.trim()) {
     case 'insufficient_stock': return `Only ${b} left of ${a}. Lower the quantity and try again.`;
@@ -64,6 +65,7 @@ function friendly(msg: string): string {
     case 'invalid_email': return 'The email address is not valid.';
     case 'invalid_address': return 'The delivery address is incomplete.';
     case 'invoice_requires_business': return 'Invoice payment is only available in Business mode.';
+    case 'sign_in_required': return 'Sign in to place your order.';
     case 'invalid_quantity': return `Invalid quantity for ${a}.`;
     default: return 'We could not place the order. Please try again.';
   }
@@ -79,6 +81,8 @@ export async function placeOrder(input: OrderInput): Promise<{ ok: true; order: 
   if (lines.some((l) => !(l.qty >= 1 && l.qty <= 9999))) return { ok: false, error: 'Invalid quantity.' };
 
   if (supabaseConfigured()) {
+    // orders belong to an account: the database only lets signed-in customers call place_order()
+    if (!input.token) return { ok: false, error: friendly('sign_in_required') };
     const { data, error } = await supabaseClient(input.token).rpc('place_order', {
       p_mode: input.mode, p_customer: input.customer, p_ship: input.ship, p_payment: input.pay, p_lines: lines.map((l) => ({ sku: l.ref, qty: l.qty })),
     });

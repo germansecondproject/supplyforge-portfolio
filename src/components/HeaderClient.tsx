@@ -6,16 +6,23 @@ import { useState } from 'react';
 import { useShop } from './Providers';
 import { useAuth } from './Auth';
 
-export function ModeSwitch() {
+/** The one switch between the two shops: home customers see retail prices, distributors get the Business view. */
+export function DistributorButton() {
   const { mode, setMode } = useShop();
+  const on = mode === 'biz';
   return (
-    <div className="mode" role="group" aria-label="Shopping as">
-      <span className="mode-l">Shopping as</span>
-      <div className="seg">
-        <button type="button" aria-pressed={mode === 'diy'} onClick={() => setMode('diy')}>Home &amp; DIY</button>
-        <button type="button" aria-pressed={mode === 'biz'} onClick={() => setMode('biz')}>Business</button>
-      </div>
-    </div>
+    <button
+      type="button"
+      className="dist"
+      aria-pressed={on}
+      aria-label="Distributors: business prices and quick order"
+      title={on ? 'Back to Home & DIY prices' : 'Switch to distributor prices, quick order and invoice terms'}
+      onClick={() => setMode(on ? 'diy' : 'biz')}
+    >
+      <svg aria-hidden="true"><use href={on ? '#i-check' : '#i-store'} /></svg>
+      <span className="l-full">{on ? 'Distributor view' : 'Distributors'}</span>
+      <span className="l-short" aria-hidden="true">B2B</span>
+    </button>
   );
 }
 
