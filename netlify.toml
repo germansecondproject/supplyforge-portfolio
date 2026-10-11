@@ -9,3 +9,16 @@
 # Runs the Next.js runtime (server functions for dynamic and partially prerendered pages). Without it only static files are deployed and routes return 404.
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Security headers for every page and asset. Scripts and styles stay on this domain (inline allowed for Next.js boot
+# scripts); the browser only talks to Supabase (auth, storage images) besides the site itself.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Cross-Origin-Opener-Policy = "same-origin"

@@ -66,6 +66,7 @@ function friendly(msg: string): string {
     case 'invalid_address': return 'The delivery address is incomplete.';
     case 'invoice_requires_business': return 'Invoice payment is only available in Business mode.';
     case 'sign_in_required': return 'Sign in to place your order.';
+    case 'rate_limited': return 'You have placed 10 orders in the last hour. Please try again later.';
     case 'invalid_quantity': return `Invalid quantity for ${a}.`;
     default: return 'We could not place the order. Please try again.';
   }

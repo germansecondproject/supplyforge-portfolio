@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import ListingView from '@/components/ListingView';
+import ListingSkeleton from '@/components/ListingSkeleton';
 import { getListing, getTaxonomy } from '@/lib/catalog';
 import { parseParams } from '@/lib/query';
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = { title: 'Deals' };
 export default function Page(props: PageProps<'/deals'>) {
   return (
     <div className="wrap" style={{ paddingBottom: 8 }}>
-      <Suspense fallback={<p className="muted" style={{ padding: 40 }}>Loading deals…</p>}>
+      <Suspense fallback={<ListingSkeleton label="Loading deals…" />}>
         <Content {...props} />
       </Suspense>
     </div>

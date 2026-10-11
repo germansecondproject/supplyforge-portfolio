@@ -149,6 +149,54 @@ export function parseSearch(q: string): SearchTerms {
   return { tokens, d, len };
 }
 
+/* Typo tolerance for the bundled catalogue, the same rule as fix_tokens() in Postgres: a word that appears in no
+   product is swapped for the most similar catalogue word, by pg_trgm-style trigram similarity. */
+function trigrams(w: string) {
+  const out = new Set<string>();
+  for (const part of w.split(/[^\p{L}\p{N}]+/u).filter(Boolean)) {
+    const s = '  ' + part + ' ';
+    for (let i = 0; i < s.length - 2; i++) out.add(s.slice(i, i + 3));
+  }
+  return out;
+}
+export function similarity(a: string, b: string) {
+  const ta = trigrams(a), tb = trigrams(b);
+  let shared = 0;
+  ta.forEach((t) => tb.has(t) && shared++);
+  return shared / (ta.size + tb.size - shared || 1);
+}
+
+const vocabCache = new WeakMap<Catalog, Map<string, number>>();
+function vocabulary(catalog: Catalog) {
+  let v = vocabCache.get(catalog);
+  if (!v) {
+    v = new Map();
+    for (const p of catalog.products) for (const w of haystack(catalog, p).split(/[^\p{L}\p{N}.\-]+/u)) if (w.length >= 3 && !/\d/.test(w)) v.set(w, (v.get(w) || 0) + 1);
+    vocabCache.set(catalog, v);
+  }
+  return v;
+}
+
+export function fixTokens(catalog: Catalog, tokens: string[]): string[] {
+  const vocab = vocabulary(catalog);
+  return tokens.map((t) => {
+    if (t.length < 3 || /\d/.test(t) || [...vocab.keys()].some((w) => w.includes(t))) return t;
+    let best = t, score = 0.2, n = 0;
+    for (const [w, c] of vocab) {
+      const sc = similarity(w, t);
+      if (sc > score || (sc === score && c > n)) { best = w; score = sc; n = c; }
+    }
+    return best;
+  });
+}
+
+function haystack(catalog: Catalog, p: Product) {
+  const brand = catalog.brands.find((b) => b.slug === p.brand)?.name ?? '';
+  const sub = catalog.subcategories.find((x) => x.category === p.category && x.slug === p.sub)?.name ?? '';
+  const cat = catalog.categories.find((c) => c.slug === p.category)?.name ?? '';
+  return `${p.name} ${p.ref} ${p.std || ''} ${brand} ${sub} ${cat}`.toLowerCase().replace(/×/g, 'x');
+}
+
 export function searchProducts(catalog: Catalog, terms: SearchTerms): Product[] {
   const { tokens, d, len } = terms;
   const brandName = Object.fromEntries(catalog.brands.map((b) => [b.slug, b.name]));

@@ -4,7 +4,7 @@ import local from '../../data/catalog.json';
 import { toProduct } from './rows';
 import type { ProductRow, StockRow } from './rows';
 import {
-  PAGE_SIZE, FACET_KEYS, applyListing, boughtTogether, buildFacets, buyable, facetCounts, normalizeSku, searchProducts, similarSizes, toMember,
+  PAGE_SIZE, FACET_KEYS, applyListing, boughtTogether, buildFacets, buyable, facetCounts, fixTokens, normalizeSku, offerPriceOf, searchProducts, similarSizes, toMember,
 } from './query';
 import type { Facet, FacetCounts, Filters, ListSort, SearchTerms } from './query';
 import type { Brand, Catalog, Category, Family, FamilyMember, Product, Subcategory } from './types';
@@ -99,6 +99,8 @@ export interface Listing {
   page: number;
   pages: number;
   facets: Facet[];
+  /** the search words actually used, after typo correction */
+  tokens?: string[];
 }
 
 export async function getListing(q: ListingQuery): Promise<Listing> {
@@ -111,13 +113,14 @@ export async function getListing(q: ListingQuery): Promise<Listing> {
   const f = q.filters;
 
   if (!supabaseConfigured()) {
-    let pool = q.search ? searchProducts(sample, q.search) : sample.products;
+    const tokens = q.search ? fixTokens(sample, q.search.tokens) : undefined;
+    let pool = q.search ? searchProducts(sample, { ...q.search, tokens: tokens! }) : sample.products;
     if (q.category) pool = pool.filter((p) => p.category === q.category);
     if (q.offersOnly) pool = pool.filter((p) => p.off > 0);
     const sorted = applyListing(pool, f, q.sort);
     const pages = Math.max(1, Math.ceil(sorted.length / size));
     const page = Math.min(q.page, pages);
-    return { items: sorted.slice((page - 1) * size, page * size), total: sorted.length, page, pages, facets: buildFacets(facetCounts(pool, f), f, brandName) };
+    return { items: sorted.slice((page - 1) * size, page * size), total: sorted.length, page, pages, facets: buildFacets(facetCounts(pool, f), f, brandName), tokens };
   }
 
   const args = {
@@ -127,13 +130,31 @@ export async function getListing(q: ListingQuery): Promise<Listing> {
     f_stock: f.stock, f_offers: f.offers, p_sort: q.sort, p_limit: size,
   };
   const sb = supabaseClient();
-  let res = must(await sb.rpc('catalog_listing', { ...args, p_offset: (q.page - 1) * size })) as { total: number; ids: number[]; facets: FacetCounts };
+  let res = must(await sb.rpc('catalog_listing', { ...args, p_offset: (q.page - 1) * size })) as { total: number; ids: number[]; facets: FacetCounts; tokens?: string[] };
   const pages = Math.max(1, Math.ceil(res.total / size));
   const page = Math.min(q.page, pages);
   // a page number past the end shows the last page
   if (page !== q.page) res = must(await sb.rpc('catalog_listing', { ...args, p_offset: (page - 1) * size })) as typeof res;
   const counts = Object.fromEntries(FACET_KEYS.map((k) => [k, res.facets[k] ?? {}])) as FacetCounts;
-  return { items: await productsByIds(res.ids), total: res.total, page, pages, facets: buildFacets(counts, f, brandName) };
+  return { items: await productsByIds(res.ids), total: res.total, page, pages, facets: buildFacets(counts, f, brandName), tokens: q.search ? res.tokens : undefined };
+}
+
+/* ---------- search box suggestions ---------- */
+export interface Suggestion { slug: string; ref: string; name: string; price: number; pack: number; buyable: boolean }
+export interface Suggestions { tokens: string[]; total: number; items: Suggestion[] }
+
+/** Up to six products for the search box, with the typo-corrected words. Prices are ex VAT per sale unit. */
+export async function getSuggestions(terms: SearchTerms): Promise<Suggestions> {
+  'use cache';
+  cacheLife('hours');
+  cacheTag('catalog');
+  if (!supabaseConfigured()) {
+    const tokens = fixTokens(sample, terms.tokens);
+    const hits = applyListing(searchProducts(sample, { ...terms, tokens }), { brand: [], mat: [], std: [], d: [], len: [], stock: false, offers: false }, 'relevance');
+    return { tokens, total: hits.length, items: hits.slice(0, 6).map((p) => ({ slug: p.slug, ref: p.ref, name: p.name, price: offerPriceOf(p), pack: p.pack, buyable: buyable(p) })) };
+  }
+  const res = must(await supabaseClient().rpc('search_suggest', { p_tokens: terms.tokens, p_d: terms.d, p_len: terms.len })) as Suggestions;
+  return { tokens: res.tokens, total: res.total, items: res.items.map((i) => ({ ...i, price: Number(i.price) })) };
 }
 
 /* ---------- single products ---------- */
