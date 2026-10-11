@@ -5,7 +5,7 @@ Portfolio e-commerce for fasteners, anchors and tools. Next.js 16 (App Router, C
 - **Two shopping modes**: Home & DIY (prices inc VAT) and Business (ex VAT, volume price tiers, quick order, net-30 invoice). The switch is in the top bar and is remembered.
 - **Catalogue**: 10,000 products in 8 categories and 37 subcategories, from 16 brands and 301 product families. Listings, technical filters (brand, material, standard, thread, length), facet counts, sorting, pagination and search ("DIN 933 M8x40" works) all run in Postgres (`catalog_listing()` in `supabase/migrations/20261011120000_catalog_queries.sql`), so a page only ever reads the 24 products it shows. Product pages read one product, its family's variant axes and its recommendations.
 - **Product page**: everything comes from the database: name, description, highlights, specifications, weight and package size, SKU, item code and EAN, price, discount and VAT, promotional text, availability per warehouse with delivery time, size configurator and "other sizes" from the family, and stored recommendations.
-- **Images**: every product has an `image_url` (`/images/products/<slug>.svg`), a technical drawing generated on request from the product's dimensions (`src/lib/art.ts`, served by `src/app/images/products/[file]/route.ts` and cached).
+- **Images**: every product has an `image_url` pointing to its file in the public Supabase Storage bucket `product-images`: a technical drawing generated from the product's dimensions (`src/lib/art.ts`, `src/lib/product-image.ts`). The store pages draw the same image inline so it follows the light and dark theme; `image_url` is what shares, search engines and other clients use. To (re)upload the files, deploy `supabase/functions/upload-product-images` and follow the steps at the top of that file.
 - **Checkout**: basket with recommendations, delivery and payment steps. Orders go through the `place_order()` SQL function, which re-prices every line on the server, checks stock and the unavailable flag, and adds the sale to `sales`. No payment is processed.
 
 ## Data model
@@ -44,7 +44,7 @@ With no environment variables the app reads `data/catalog.json`, a 188-product s
 2. Copy `.env.example` to `.env.local` and fill in the project URL and the publishable (anon) key.
 3. Restart. The catalogue is now read from Postgres and orders are stored in `orders` / `order_lines` and counted in `sales`.
 
-To regenerate the catalogue: `npm run catalog` (rewrites `data/catalog.json` and `supabase/seed/`). The generator is deterministic; the original 188 products keep their ids and data.
+To regenerate the catalogue: `npm run catalog` (rewrites `data/catalog.json` and `supabase/seed/`). The generator is deterministic; the original 188 products keep their ids and data. Image URLs point at this project's bucket; set `IMAGE_BASE_URL` to use another one.
 
 ## Deploy to Netlify
 

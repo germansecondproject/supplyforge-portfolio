@@ -19,12 +19,16 @@ Deno.serve(async (req) => {
 
   let uploaded = 0;
   const failed: string[] = [];
-  for (let i = 0; i < data.length; i += 25) {
-    await Promise.all(data.slice(i, i + 25).map(async (p) => {
+  // a few uploads at a time: Storage shares the database's small connection pool on the free plan
+  for (let i = 0; i < data.length; i += 6) {
+    await Promise.all(data.slice(i, i + 6).map(async (p) => {
       const svg = new Blob([productImageSVG(p.art, p.name)], { type: 'image/svg+xml' });
-      const res = await sb.storage.from('product-images').upload(`${p.slug}.svg`, svg, { upsert: true, contentType: 'image/svg+xml', cacheControl: '604800' });
-      if (res.error) failed.push(`${p.slug}: ${res.error.message}`);
-      else uploaded++;
+      for (let attempt = 1; ; attempt++) {
+        const res = await sb.storage.from('product-images').upload(`${p.slug}.svg`, svg, { upsert: true, contentType: 'image/svg+xml', cacheControl: '604800' });
+        if (!res.error) { uploaded++; return; }
+        if (attempt === 3) { failed.push(`${p.slug}: ${res.error.message}`); return; }
+        await new Promise((r) => setTimeout(r, 500 * attempt));
+      }
     }));
   }
   return Response.json({ uploaded, failed: failed.length, examples: failed.slice(0, 5) });
