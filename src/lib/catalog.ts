@@ -18,9 +18,11 @@ import type { Brand, Catalog, Category, Family, FamilyMember, Product, Subcatego
 
 export const supabaseConfigured = () => Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-export function supabaseClient() {
+/** A server-side client; with a customer's access token, queries and functions run as that customer. */
+export function supabaseClient(token?: string | null) {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false },
+    ...(token ? { global: { headers: { Authorization: `Bearer ${token}` } } } : {}),
   });
 }
 

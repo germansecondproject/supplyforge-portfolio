@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ModeSwitch, VatSwitch, CartLink, SearchBox } from './HeaderClient';
+import { ModeSwitch, VatSwitch, CartLink, SearchBox, AccountLink } from './HeaderClient';
 import type { Category } from '@/lib/types';
 
 export default function Header({ categories }: { categories: Category[] }) {
@@ -12,8 +12,8 @@ export default function Header({ categories }: { categories: Category[] }) {
           <span className="u-msg"><b>24 h delivery</b> on orders before 5 pm · Free over €150 <span className="biz">ex VAT</span></span>
           <div className="u-links">
             <Link href="/help">Help &amp; returns</Link>
-            <Link href="/help">Our warehouse</Link>
-            <Link href="/help" className="biz">Trade pricing</Link>
+            <Link href="/warehouse">Our warehouses</Link>
+            <Link href="/trade" className="biz">Trade pricing</Link>
           </div>
         </div>
       </div>
@@ -25,15 +25,17 @@ export default function Header({ categories }: { categories: Category[] }) {
           </Link>
           <SearchBox />
           <div className="hdr-actions">
+            <Link className="dist" href="/trade"><svg aria-hidden="true"><use href="#i-store" /></svg><span>Distributors</span></Link>
             <VatSwitch />
-            <Link className="hact" href="/help"><svg aria-hidden="true"><use href="#i-user" /></svg><span>Account</span></Link>
-            <Link className="hact" href="/help"><svg aria-hidden="true"><use href="#i-list" /></svg><span>Lists</span></Link>
+            <AccountLink />
+            <Link className="hact" href="/lists"><svg aria-hidden="true"><use href="#i-list" /></svg><span>Lists</span></Link>
             <CartLink />
           </div>
         </div>
         <nav className="nav" aria-label="Categories">
           <div className="wrap">
             {categories.map((c) => <Link key={c.slug} href={`/c/${c.slug}`}>{c.name}</Link>)}
+            <Link href="/quick-order" className="qol"><svg aria-hidden="true"><use href="#i-zap" /></svg>Quick order</Link>
             <Link href="/deals" className="pro">Deals</Link>
           </div>
         </nav>

@@ -9,6 +9,7 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import './globals.css';
 import Providers from '@/components/Providers';
+import AuthProvider from '@/components/Auth';
 import Sprites from '@/components/Sprites';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -31,9 +32,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <Sprites />
         <Providers>
-          <Header categories={categories} />
-          <main id="content">{children}</main>
-          <Footer categories={categories} />
+          <AuthProvider>
+            <Header categories={categories} />
+            <main id="content">{children}</main>
+            <Footer categories={categories} />
+          </AuthProvider>
         </Providers>
       </body>
     </html>

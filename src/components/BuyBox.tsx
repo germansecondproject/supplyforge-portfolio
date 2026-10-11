@@ -9,7 +9,7 @@ import { buyable } from '@/lib/query';
 import type { Product } from '@/lib/types';
 
 export default function BuyBox({ p, step }: { p: Product; step: number }) {
-  const { addLine, toast, vat } = useShop();
+  const { addLine, save, toast, vat, mode } = useShop();
   const [qty, setQty] = useState(1);
   const [text, setText] = useState('1');
   const set = (n: number) => { const v = Math.max(1, Math.min(9999, n)); setQty(v); setText(String(v)); };
@@ -63,7 +63,7 @@ export default function BuyBox({ p, step }: { p: Product; step: number }) {
         </div>
         <div className="buy-btns">
           <button className="btn btn-primary btn-lg" type="button" onClick={add} disabled={out}>{out ? outLabel : 'Add to basket'}</button>
-          <button className="btn btn-line" type="button" onClick={() => toast('Shopping lists are not part of this demo.')}>
+          <button className="btn btn-line" type="button" onClick={() => { save(toLine(p, qty)); toast(mode === 'biz' ? `Added to your list: ${p.name}` : `Saved for later: ${p.name}`, 'lists'); }}>
             <span className="diy">Save for later</span><span className="biz">Add to a list</span>
           </button>
         </div>

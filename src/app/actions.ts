@@ -40,6 +40,8 @@ export interface OrderInput {
   pay: 'card' | 'transfer' | 'invoice';
   customer: Record<string, string>;
   lines: { ref: string; qty: number }[];
+  /** the signed-in customer's access token, so the order is saved to their account */
+  token?: string | null;
 }
 export interface OrderResult {
   number: string;
@@ -77,7 +79,7 @@ export async function placeOrder(input: OrderInput): Promise<{ ok: true; order: 
   if (lines.some((l) => !(l.qty >= 1 && l.qty <= 9999))) return { ok: false, error: 'Invalid quantity.' };
 
   if (supabaseConfigured()) {
-    const { data, error } = await supabaseClient().rpc('place_order', {
+    const { data, error } = await supabaseClient(input.token).rpc('place_order', {
       p_mode: input.mode, p_customer: input.customer, p_ship: input.ship, p_payment: input.pay, p_lines: lines.map((l) => ({ sku: l.ref, qty: l.qty })),
     });
     if (error) return { ok: false, error: friendly(error.message) };
