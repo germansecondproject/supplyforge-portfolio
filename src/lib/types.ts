@@ -1,4 +1,4 @@
-import type { BoltType, MatKey } from './standards';
+import type { BoltType, MatKey } from './standards.ts';
 
 export interface ArtSpec {
   kind: string;

@@ -28,6 +28,9 @@ function rng(seed: string) {
 }
 
 /* ---------- taxonomy ---------- */
+// Product images live in the public Supabase Storage bucket `product-images` (uploaded by supabase/functions/upload-product-images).
+const IMAGE_BASE = process.env.IMAGE_BASE_URL ?? 'https://synglipskpbnlknlrqsu.supabase.co/storage/v1/object/public/product-images';
+
 const categories: Category[] = [
   { slug: 'fasteners', name: 'Fasteners', tone: 'yellow', icon: 'c-screw', blurb: 'Bolts, screws, nuts and washers to DIN and ISO standards.', position: 1 },
   { slug: 'anchors', name: 'Anchors & plugs', tone: 'navy', icon: 'c-anchor', blurb: 'Wall plugs, frame anchors and chemical fixings for every substrate.', position: 2 },
@@ -431,7 +434,7 @@ const products: Product[] = bases.map((b) => {
     availability: lines,
     weight_kg: kg,
     dims_mm: dims,
-    image: `/images/products/${b.slug}.svg`,
+    image: `${IMAGE_BASE}/${b.slug}.svg`,
     image_alt: `Technical drawing of ${b.name}`,
     tags: [b.category, b.sub, ...(b.std ? [b.std] : []), ...(b.off ? ['offer'] : []), ...(promo ? ['promo'] : [])],
     origin_country: brands.find((x) => x.slug === b.brand)!.country,
@@ -593,15 +596,16 @@ files.push(['20_product_text.sql', [
   description = (select string_agg(h, ' ' order by i) from jsonb_array_elements_text(p.highlights) with ordinality as t(h, i))
     || ' ' || p.name || ' by ' || b.name || '.'
     || case when fc.n > 1 then ' Part of the ' || f.name || ' range, available in ' || fc.n || ' versions.' else '' end,
-  image_url = '/images/products/' || p.slug || '.svg',
+  image_url = '${IMAGE_BASE}/' || p.slug || '.svg',
   image_alt = 'Technical drawing of ' || p.name,
   tags = array[p.category, p.subcategory] || case when p.standard is null then '{}'::text[] else array[p.standard] end
     || case when p.discount_pct > 0 then array['offer'] else '{}'::text[] end || case when p.promo_enabled then array['promo'] else '{}'::text[] end
 from public.brands b, public.product_families f, (select family, count(*)::int as n from public.products group by family) fc
 where b.slug = p.brand and f.slug = p.family and fc.family = p.family
-  and p.description is distinct from (select string_agg(h, ' ' order by i) from jsonb_array_elements_text(p.highlights) with ordinality as t(h, i))
+  and (p.description is distinct from (select string_agg(h, ' ' order by i) from jsonb_array_elements_text(p.highlights) with ordinality as t(h, i))
     || ' ' || p.name || ' by ' || b.name || '.'
-    || case when fc.n > 1 then ' Part of the ' || f.name || ' range, available in ' || fc.n || ' versions.' else '' end;`,
+    || case when fc.n > 1 then ' Part of the ' || f.name || ' range, available in ' || fc.n || ' versions.' else '' end
+    or p.image_url is distinct from '${IMAGE_BASE}/' || p.slug || '.svg');`,
 ]]);
 files.push(['30_recommendations.sql', [HEAD, ...rows(recommendations, 2000).map((part) =>
   'insert into public.product_recommendations (product_id,recommended_id,kind,position) values\n' + part.map((r) => `(${r.product_id},${r.recommended_id},${q(r.kind)},${r.position})`).join(',') + '\non conflict do nothing;')]]);
