@@ -355,8 +355,6 @@ html[data-mode="biz"] .diy{display:none!important}
 .price.sale{color:var(--red-t)}
 
 .util .wrap{gap:16px}
-.mode{display:flex;align-items:center;gap:10px}
-.mode-l{font-size:.75rem;color:var(--on-steel-2)}
 .util .seg{background:var(--steel)}
 .util .seg button{min-height:28px;font-size:.75rem}
 .u-msg{margin-inline:auto}
@@ -393,7 +391,7 @@ html[data-mode="biz"] .diy{display:none!important}
 .promo .more{display:inline-flex;gap:6px;align-items:center;font-weight:600;font-size:.875rem;position:relative}
 .promo .tag{position:relative}
 .deco{position:absolute;right:-18px;bottom:-22px;width:170px;height:170px;opacity:.2;pointer-events:none;transition:transform .35s}
-.promo:hover .deco,.tile:hover .bg,.wide:hover .deco{transform:scale(1.07) rotate(-4deg)}
+.promo:hover .deco,.wide:hover .deco{transform:scale(1.07) rotate(-4deg)}
 .p-yellow{background:var(--zinc);color:var(--on-zinc)}
 .p-navy{background:var(--navy)}
 .p-red{background:var(--red)}
@@ -404,7 +402,8 @@ html[data-mode="biz"] .diy{display:none!important}
 /* category tiles */
 .tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .tile{position:relative;overflow:hidden;aspect-ratio:4/3;min-height:140px;padding:16px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;color:#fff;text-decoration:none}
-.tile .bg{position:absolute;right:-6%;top:-8%;width:74%;height:auto;aspect-ratio:1;opacity:.26;transition:transform .35s}
+.tile .bg{position:absolute;right:-6%;top:-8%;width:74%;height:auto;aspect-ratio:1;opacity:.26;transform-origin:70% 30%;transition:transform .45s cubic-bezier(.2,.7,.2,1)}
+.tile:hover .bg,.tile:focus-visible .bg{transform:scale(1.14)}
 .tile h3{position:relative;font-size:clamp(1.375rem,2vw,1.75rem);text-transform:uppercase;line-height:1}
 .tile .n{position:relative;font:500 .75rem var(--f-mono);opacity:.9}
 .t-yellow{background:var(--zinc);color:var(--on-zinc)}
@@ -476,7 +475,7 @@ html[data-mode="biz"] .diy{display:none!important}
   .rail.rec{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:860px){
-  .u-msg{display:none}.mode{margin-inline:0}
+  .util{display:none}
   .hero{padding:32px 0 100px}
   .finder{grid-template-columns:1fr}
   .finder-prev{flex-direction:row;justify-content:space-between;text-align:left}
@@ -570,14 +569,17 @@ a.chip{text-decoration:none}
 .hero .eyebrow,.hero p,.hero h1 em{color:var(--on-steel)}
 
 /* ---------- distributors button, quick order link, signed-in dot ---------- */
-.dist{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;margin-right:6px;border:1.5px solid var(--zinc);border-radius:var(--r);color:var(--zinc);font-weight:600;text-decoration:none;white-space:nowrap}
-.dist:hover{background:var(--zinc);color:var(--on-zinc)}
+.dist{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;margin-right:6px;border:2px solid var(--zinc);border-radius:var(--r);background:var(--zinc);color:var(--on-zinc);font:700 .9375rem var(--f-body);white-space:nowrap;cursor:pointer;transition:background .15s,color .15s}
+.dist:hover{background:transparent;color:var(--zinc)}
+.dist[aria-pressed="true"]{background:transparent;color:var(--zinc)}
+.dist[aria-pressed="true"]:hover{background:var(--zinc);color:var(--on-zinc)}
 .dist svg{width:20px;height:20px}
 .nav a.qol{margin-left:auto;gap:8px;color:var(--zinc);font-weight:600}
 .nav a.qol svg{width:18px;height:18px}
 .nav a.qol+a.pro{margin-left:0}
 .hact .dot{position:absolute;top:8px;right:14px;width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px var(--steel)}
-@media (max-width:900px){.dist span{display:none}.dist{padding:0 10px;margin-right:0}}
+.dist .l-short{display:none}
+@media (max-width:640px){.dist .l-full{display:none}.dist .l-short{display:inline}.dist{padding:0 10px;margin-right:0;gap:6px}}
 
 /* ---------- content pages ---------- */
 .page-hd{background:var(--steel);color:var(--on-steel);padding-bottom:36px;border-bottom:6px solid var(--zinc)}
@@ -642,3 +644,4 @@ a.chip{text-decoration:none}
   .doc-nav a{border-left:0;margin-left:0;padding:6px 10px}
 }
 @media (max-width:600px){.hdr-actions .hact[href="/lists"]{display:none}.hdr-actions{gap:2px}.dist{min-height:40px;padding:0 9px}.hdr-main{column-gap:12px}.logo b{font-size:1.5rem}}
+@media (max-width:420px){.logo b{font-size:1.25rem}.logo svg{width:28px;height:28px}.hdr-main{column-gap:8px}}

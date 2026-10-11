@@ -33,7 +33,7 @@ function Status({ s }: { s: string }) {
 }
 
 /* ---------- signed out: sign in, create an account, or try a demo customer ---------- */
-function SignIn() {
+export function SignIn({ title }: { title?: string } = {}) {
   const { signIn, signUp } = useAuth();
   const [tab, setTab] = useState<'in' | 'up'>('in');
   const [email, setEmail] = useState('');
@@ -67,6 +67,7 @@ function SignIn() {
   return (
     <div className="acct">
       <form className="panel" onSubmit={submit} noValidate>
+        {title && <h1 style={{ fontSize: '2rem' }}>{title}</h1>}
         <div className="seg acct-tabs" role="group" aria-label="Account">
           <button type="button" aria-pressed={tab === 'in'} onClick={() => { setTab('in'); setMsg(null); }}>Sign in</button>
           <button type="button" aria-pressed={tab === 'up'} onClick={() => { setTab('up'); setMsg(null); }}>Create account</button>

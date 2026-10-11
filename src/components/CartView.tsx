@@ -6,6 +6,7 @@ import { placeOrder } from '@/app/actions';
 import type { OrderResult } from '@/app/actions';
 import { useShop } from './Providers';
 import { useAuth } from './Auth';
+import { SignIn } from './AccountView';
 import { Price, VatLabel } from './Price';
 import { artSVG } from '@/lib/art';
 import { eur, lineUnit, totals, unitFor } from '@/lib/pricing';
@@ -50,7 +51,9 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
   const [order, setOrder] = useState<{ res: OrderResult; delivery: string; email: string; biz: boolean } | null>(null);
   const [payErr, setPayErr] = useState('');
   const [pending, start] = useTransition();
-  const { user, profile, token } = useAuth();
+  const { available: authOn, user, profile, token } = useAuth();
+  // with accounts switched on, checkout past the basket needs a signed-in customer
+  const gate = authOn && !user && (step === 2 || step === 3);
   const filled = useRef(false);
 
   // signed-in customers start from the details saved on their account
@@ -63,6 +66,15 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
       phone: profile.phone || f.phone, address: profile.address || f.address, postcode: profile.postcode || f.postcode, city: profile.city || f.city,
     }));
   }, [user, profile]);
+
+  // after a confirmed order, the next visit to the basket starts a new one
+  if (step === 4 && cart.length > 0) { setStep(1); setOrder(null); setTerms(false); }
+  const leftConfirmed = useRef(false);
+  useEffect(() => { leftConfirmed.current = step === 4; }, [step]);
+  useEffect(() => () => {
+    // the page is kept alive in the background when you navigate away; drop the confirmation so it does not come back
+    if (leftConfirmed.current) { setStep(1); setOrder(null); setTerms(false); }
+  }, []);
 
   const T = totals(cart, ship);
   const items = cart.reduce((a, l) => a + l.qty, 0);
@@ -188,16 +200,22 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <Link className="btn btn-line" href="/c/fasteners">Continue shopping</Link>
-                <button className="btn btn-primary btn-lg" type="button" onClick={() => go(2)}>Continue to delivery</button>
+                <button className="btn btn-primary btn-lg" type="button" onClick={() => go(2)}>{authOn && !user ? 'Sign in to check out' : 'Continue to delivery'}</button>
               </div>
             </div>
           )}
 
-          {ready && cart.length > 0 && step === 2 && (
+          {ready && cart.length > 0 && gate && (
+            <div>
+              <SignIn title="Sign in to place your order" />
+              <div style={{ marginTop: 12 }}><button className="btn btn-line" type="button" onClick={() => go(1)}>Back to basket</button></div>
+            </div>
+          )}
+
+          {ready && cart.length > 0 && !gate && step === 2 && (
             <form className="panel" onSubmit={submitShip} noValidate>
               <h1 style={{ fontSize: '2rem' }}>Delivery details</h1>
               <div><span className="lbl">{biz ? 'Company and contact' : 'Your details'} {user ? '(from your account)' : '(sample data)'}</span></div>
-              {!user && <p className="muted" style={{ fontSize: '.875rem' }}><Link href="/account">Sign in</Link> to fill in your details and keep this order in your account.</p>}
               <div className="form2">
                 {biz ? (
                   <>
@@ -233,7 +251,7 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
             </form>
           )}
 
-          {ready && cart.length > 0 && step === 3 && (
+          {ready && cart.length > 0 && !gate && step === 3 && (
             <form className="panel" onSubmit={submitPay} noValidate>
               <h1 style={{ fontSize: '2rem' }}>Payment</h1>
               <div className="opts" role="radiogroup" aria-label="Payment method">

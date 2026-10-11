@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ModeSwitch, VatSwitch, CartLink, SearchBox, AccountLink } from './HeaderClient';
+import { DistributorButton, VatSwitch, CartLink, SearchBox, AccountLink } from './HeaderClient';
 import type { Category } from '@/lib/types';
 
 export default function Header({ categories }: { categories: Category[] }) {
@@ -8,12 +8,11 @@ export default function Header({ categories }: { categories: Category[] }) {
       <a className="sr" href="#content">Skip to content</a>
       <div className="util">
         <div className="wrap">
-          <ModeSwitch />
           <span className="u-msg"><b>24 h delivery</b> on orders before 5 pm · Free over €150 <span className="biz">ex VAT</span></span>
           <div className="u-links">
             <Link href="/help">Help &amp; returns</Link>
             <Link href="/warehouse">Our warehouses</Link>
-            <Link href="/trade" className="biz">Trade pricing</Link>
+            <Link href="/trade">Trade accounts</Link>
           </div>
         </div>
       </div>
@@ -25,7 +24,7 @@ export default function Header({ categories }: { categories: Category[] }) {
           </Link>
           <SearchBox />
           <div className="hdr-actions">
-            <Link className="dist" href="/trade"><svg aria-hidden="true"><use href="#i-store" /></svg><span>Distributors</span></Link>
+            <DistributorButton />
             <VatSwitch />
             <AccountLink />
             <Link className="hact" href="/lists"><svg aria-hidden="true"><use href="#i-list" /></svg><span>Lists</span></Link>
