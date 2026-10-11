@@ -1,0 +1,63 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useState } from 'react';
+import { useShop } from './Providers';
+
+export function ModeSwitch() {
+  const { mode, setMode } = useShop();
+  return (
+    <div className="mode" role="group" aria-label="Shopping as">
+      <span className="mode-l">Shopping as</span>
+      <div className="seg">
+        <button type="button" aria-pressed={mode === 'diy'} onClick={() => setMode('diy')}>Home &amp; DIY</button>
+        <button type="button" aria-pressed={mode === 'biz'} onClick={() => setMode('biz')}>Business</button>
+      </div>
+    </div>
+  );
+}
+
+export function VatSwitch() {
+  const { vat, setVat } = useShop();
+  return (
+    <div className="vat" role="group" aria-label="Show prices">
+      <div className="seg">
+        <button type="button" aria-pressed={!vat} onClick={() => setVat(false)}>Ex VAT</button>
+        <button type="button" aria-pressed={vat} onClick={() => setVat(true)}>Inc VAT</button>
+      </div>
+    </div>
+  );
+}
+
+export function CartLink() {
+  const { cart } = useShop();
+  const n = cart.length;
+  return (
+    <Link className="hact" href="/cart" aria-label={`Basket, ${n} ${n === 1 ? 'line' : 'lines'}`}>
+      <svg aria-hidden="true"><use href="#i-cart" /></svg>
+      <span>Basket</span>
+      {n > 0 && <i className="badge">{n}</i>}
+    </Link>
+  );
+}
+
+export function SearchBox() {
+  const router = useRouter();
+  const [q, setQ] = useState('');
+  return (
+    <form
+      className="search"
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const v = q.trim();
+        if (v) router.push('/search?q=' + encodeURIComponent(v));
+      }}
+    >
+      <label className="sr" htmlFor="q">Search products</label>
+      <input id="q" type="search" placeholder="Part number, size or standard" autoComplete="off" value={q} onChange={(e) => setQ(e.target.value)} />
+      <button type="submit"><svg width="20" height="20" aria-hidden="true"><use href="#i-search" /></svg><span>Search</span></button>
+    </form>
+  );
+}
