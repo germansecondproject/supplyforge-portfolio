@@ -1,6 +1,11 @@
 [build]
   command = "npm run build"
-  # The Netlify Next.js runtime is detected automatically; no publish directory is needed.
+  # Set here so a publish directory typed in the Netlify UI cannot override it; the Next.js runtime serves from .next.
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "22"
+
+# Runs the Next.js runtime (server functions for dynamic and partially prerendered pages). Without it only static files are deployed and routes return 404.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
