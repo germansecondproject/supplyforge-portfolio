@@ -636,6 +636,7 @@ from (
   where x.sold
 ) y;`]]);
 files.push(['50_orders.sql', [HEAD, readOrdersSql()]]);
+files.push(['60_accounts.sql', [HEAD, accountsSql()]]);
 
 function readOrdersSql() {
   return `-- A year of past orders from fictitious customers (example.com addresses). Skipped when seeded orders already exist.
@@ -705,3 +706,50 @@ select setval('public.order_number_seq', greatest((select last_value from public
 
 for (const [name, parts] of files) writeFileSync(new URL(name, seedDir), ['begin;', ...parts, 'commit;'].join('\n\n') + '\n');
 console.log(`products: ${products.length}, families: ${families.length}, recommendations: ${recommendations.length}, stock rows: ${stockRows.length}, unavailable: ${products.filter((p) => p.unavailable).length}, promo: ${products.filter((p) => p.promo).length}, files: ${files.length}`);
+
+function accountsSql() {
+  return `-- Demo customer accounts for the seeded orders: 750 fictitious customers (customer1@example.com … customer750@example.com),
+-- all with the password "supplyforge-demo". Accounts 1-300 are businesses. Each seeded order is assigned to one of them
+-- (business orders to business accounts) and its customer details are aligned with that account.
+-- Only adds accounts that do not exist and only touches seeded orders that have no account yet.
+create temp table seed_customers on commit drop as
+select k, md5('seed-customer-' || k)::uuid as id, 'customer' || k || '@example.com' as email, k <= 300 as biz,
+  (array['Lucía','Hugo','Martina','Mateo','Sofía','Leo','Valeria','Daniel','Julia','Pablo','Paula','Álvaro','Carla','Adrián','Elena','Manuel','Alba','Diego','Noa','Javier','Irene','Marcos','Sara','Iván','Laura','Jorge','Marta','Sergio','Clara','Raúl','Ana','David','Carmen','Andrés','Nerea','Óscar','Lara','Rubén','Inés','Víctor','Eva','Tomás','Rocío','Gonzalo','Celia','Íker','Aitana','Mario','Lola','Bruno'])[1 + (k * 7) % 50]
+    || ' ' || (array['García','Martínez','López','Sánchez','González','Gómez','Fernández','Moreno','Jiménez','Pérez','Rodríguez','Navarro','Ruiz','Díaz','Serrano','Hernández','Muñoz','Sáez','Romero','Rubio','Alfaro','Molina','Lozano','Castillo','Picazo','Ortega','Morales','Ortiz','Delgado','Marín','Iglesias','Santos','Castro','Garrido','Vidal','Cano','Ramos','Gil','Prieto','Méndez','Calvo','Vega','Cruz','Herrera','Peña','Flores','Campos','León','Márquez','Soler'])[1 + (k * 13 + k / 50 * 7) % 50] as name,
+  case when k <= 300 then (array['Reformas','Instalaciones','Montajes','Talleres','Construcciones','Carpintería','Electricidad','Fontanería'])[1 + k % 8]
+    || ' ' || (array['García','Martínez','López','Sánchez','González','Gómez','Fernández','Moreno','Jiménez','Pérez','Rodríguez','Navarro','Ruiz','Díaz','Serrano','Hernández','Muñoz','Sáez','Romero','Rubio','Alfaro','Molina','Lozano','Castillo','Picazo','Ortega','Morales','Ortiz','Delgado','Marín','Iglesias','Santos','Castro','Garrido','Vidal','Cano','Ramos','Gil','Prieto','Méndez','Calvo','Vega','Cruz','Herrera','Peña','Flores','Campos','León','Márquez','Soler'])[1 + (k * 13 + k / 50 * 7) % 50] || ' SL' end as company,
+  (array['Calle Mayor','Avenida de la Constitución','Calle Real','Calle del Sol','Paseo de la Estación','Calle Industria','Polígono Las Américas, nave','Calle San Juan','Avenida de Andalucía','Calle de la Paz','Calle Nueva','Ronda Sur','Calle del Carmen','Calle Ancha','Avenida de Europa','Calle Toledo','Calle Valencia','Calle Alcalá','Camino Viejo','Calle Goya','Calle Princesa','Polígono El Pino, nave','Calle Cervantes','Avenida del Puerto'])[1 + (k * 5) % 24] || ' ' || (1 + (k * 37) % 120) as address,
+  (array['Madrid','Barcelona','Valencia','Sevilla','Zaragoza','Málaga','Murcia','Palma','Bilbao','Alicante','Córdoba','Valladolid','Vigo','Gijón','Granada','Vitoria','A Coruña','Elche','Getafe','Badalona','Cartagena','Terrassa','Pamplona','Almería','Burgos','Santander','Castellón','Albacete','Logroño','Salamanca'])[1 + (k * 11) % 30] as city,
+  lpad(((array[28,8,46,41,50,29,30,7,48,3,14,47,36,33,18,1,15,3,28,8,30,8,31,4,9,39,12,2,26,37])[1 + (k * 11) % 30] * 1000 + 1 + (k * 37) % 80)::text, 5, '0') as postcode,
+  '6' || lpad(((k * 7919) % 100000000)::text, 8, '0') as phone,
+  timestamptz '2025-09-01 09:00:00+02' + (k % 40) * interval '1 day' as created_at
+from generate_series(1, 750) k;
+
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at, confirmation_token, recovery_token, email_change_token_new, email_change, email_change_token_current,
+  phone_change, phone_change_token, reauthentication_token, is_sso_user, is_anonymous)
+select '00000000-0000-0000-0000-000000000000', c.id, 'authenticated', 'authenticated', c.email, pw.hash, c.created_at,
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  jsonb_strip_nulls(jsonb_build_object('name', c.name, 'company', c.company, 'phone', c.phone, 'address', c.address, 'city', c.city,
+    'postcode', c.postcode, 'mode', case when c.biz then 'biz' else 'diy' end, 'demo', true)),
+  c.created_at, c.created_at, '', '', '', '', '', '', '', '', false, false
+from seed_customers c
+cross join (select extensions.crypt('supplyforge-demo', extensions.gen_salt('bf', 10)) as hash) pw
+where not exists (select 1 from auth.users u where u.id = c.id or u.email = c.email);
+
+insert into auth.identities (provider_id, user_id, identity_data, provider, created_at, updated_at)
+select c.id::text, c.id, jsonb_build_object('sub', c.id::text, 'email', c.email, 'email_verified', true, 'phone_verified', false), 'email', c.created_at, c.created_at
+from seed_customers c
+join auth.users u on u.id = c.id
+on conflict (provider_id, provider) do nothing;
+
+-- Business orders go to business accounts and home orders to home accounts, spread evenly by order id.
+update public.orders o
+set user_id = c.id,
+  customer = jsonb_strip_nulls(jsonb_build_object('name', c.name, 'email', c.email, 'company', c.company, 'phone', c.phone,
+    'address', c.address, 'city', c.city, 'postcode', c.postcode, 'source', 'seed'))
+from seed_customers c
+join auth.users u on u.id = c.id
+where o.customer->>'source' = 'seed' and o.user_id is null
+  and c.k = case when o.mode = 'biz' then 1 + abs(hashtext(o.id::text)) % 300 else 301 + abs(hashtext(o.id::text)) % 450 end;`;
+}

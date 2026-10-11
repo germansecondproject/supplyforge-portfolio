@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { placeOrder } from '@/app/actions';
 import type { OrderResult } from '@/app/actions';
 import { useShop } from './Providers';
+import { useAuth } from './Auth';
 import { Price, VatLabel } from './Price';
 import { artSVG } from '@/lib/art';
 import { eur, lineUnit, totals, unitFor } from '@/lib/pricing';
@@ -49,6 +50,19 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
   const [order, setOrder] = useState<{ res: OrderResult; delivery: string; email: string; biz: boolean } | null>(null);
   const [payErr, setPayErr] = useState('');
   const [pending, start] = useTransition();
+  const { user, profile, token } = useAuth();
+  const filled = useRef(false);
+
+  // signed-in customers start from the details saved on their account
+  useEffect(() => {
+    if (!user || !profile || filled.current) return;
+    filled.current = true;
+    const [first, ...rest] = profile.name.split(' ');
+    setForm((f) => ({
+      ...f, email: user.email ?? f.email, first: first || f.first, last: rest.join(' ') || f.last, company: profile.company || f.company,
+      phone: profile.phone || f.phone, address: profile.address || f.address, postcode: profile.postcode || f.postcode, city: profile.city || f.city,
+    }));
+  }, [user, profile]);
 
   const T = totals(cart, ship);
   const items = cart.reduce((a, l) => a + l.qty, 0);
@@ -81,6 +95,7 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
         mode, ship, pay,
         customer: { ...form, company: biz ? form.company : '', vatId: biz ? form.vatId : '' },
         lines: cart.map((l) => ({ ref: l.ref, qty: l.qty })),
+        token: await token(),
       });
       if (!res.ok) { setPayErr(res.error); return; }
       setOrder({ res: res.order, delivery: deliveryText(ship), email: form.email, biz });
@@ -181,7 +196,8 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
           {ready && cart.length > 0 && step === 2 && (
             <form className="panel" onSubmit={submitShip} noValidate>
               <h1 style={{ fontSize: '2rem' }}>Delivery details</h1>
-              <div><span className="lbl">{biz ? 'Company and contact' : 'Your details'} (sample data, nothing is stored)</span></div>
+              <div><span className="lbl">{biz ? 'Company and contact' : 'Your details'} {user ? '(from your account)' : '(sample data)'}</span></div>
+              {!user && <p className="muted" style={{ fontSize: '.875rem' }}><Link href="/account">Sign in</Link> to fill in your details and keep this order in your account.</p>}
               <div className="form2">
                 {biz ? (
                   <>
@@ -237,7 +253,7 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
               )}
               <label style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minHeight: 44 }}>
                 <input type="checkbox" id="terms" checked={terms} onChange={(e) => setTerms(e.target.checked)} style={{ width: 22, height: 22, accentColor: 'var(--ink)', marginTop: 2 }} />
-                <span>I accept the <Link href="/help">terms of sale</Link> and the returns policy.</span>
+                <span>I accept the <Link href="/legal#terms">terms of sale</Link> and the <Link href="/help#returns">returns policy</Link>.</span>
               </label>
               {termsErr && <div className="err" role="alert">Accept the terms of sale to place your order.</div>}
               {payErr && <div className="err" role="alert">{payErr}</div>}
@@ -267,6 +283,7 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
               </p>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <Link className="btn btn-primary" href="/">Continue shopping</Link>
+                {user && order.res.source === 'supabase' && <Link className="btn btn-line" href={'/account#' + order.res.number}>See it in your account</Link>}
               </div>
             </div>
           )}

@@ -24,8 +24,8 @@ export default async function Home() {
         <div className="wrap hero-in">
           <span className="eyebrow diy">Hardware &amp; DIY · {totalLabel} products</span>
           <span className="eyebrow biz">Industrial supply · {totalLabel} products</span>
-          <h1 className="diy">Everything you need<br /><em>to finish the job</em></h1>
-          <h1 className="biz">The exact size,<br /><em>on site tomorrow</em></h1>
+          <h1 className="diy">Everything you need<br />to finish the job</h1>
+          <h1 className="biz">The exact size,<br />on site tomorrow</h1>
           <p className="diy">Screws, anchors and tools with clear sizes, honest advice and delivery the next day. Pick your size below and we show what is in stock.</p>
           <p className="biz">Fasteners, fixings and tools for installers, workshops and contractors. Volume pricing, net-30 invoicing and real stock in our own warehouse.</p>
         </div>
@@ -43,7 +43,7 @@ export default async function Home() {
 
       <div className="wrap sec" style={{ paddingTop: 8, paddingBottom: 0 }}>
         <div className="promos">
-          <Link className="promo p-yellow" href="/help">
+          <Link className="promo p-yellow" href="/help#delivery">
             <svg className="deco" aria-hidden="true"><use href="#c-screw" /></svg>
             <span className="tag tag-ink">Free delivery</span>
             <div><h3>Order before 5 pm,<br />get it tomorrow</h3><p>Free on orders over €150 <span className="biz">ex VAT</span></p></div>
@@ -101,15 +101,15 @@ export default async function Home() {
       </div>
 
       <div className="wrap sec">
-        <Link className="wide diy" href="/help">
+        <Link className="wide diy" href="/guides">
           <svg className="deco" aria-hidden="true"><use href="#c-wrench" /></svg>
-          <div><span className="tag tag-zinc">New to DIY?</span><h2>Not sure which screw or plug?</h2><p>Tell us the material and the load. We pick the right size and give you a shopping list to take to the till.</p></div>
-          <span className="btn btn-primary btn-lg">Use the project helper</span>
+          <div><span className="tag tag-zinc">New to DIY?</span><h2>Not sure which screw or plug?</h2><p>Short guides by wall type, material and standard, each ending with the exact products to buy.</p></div>
+          <span className="btn btn-primary btn-lg">Read the guides</span>
         </Link>
-        <Link className="wide biz" href="/help">
+        <Link className="wide biz" href="/trade">
           <svg className="deco" aria-hidden="true"><use href="#i-invoice" /></svg>
           <div><span className="tag tag-zinc">Business accounts</span><h2>Net-30 terms and a named account manager</h2><p>Open an account in two minutes. Trade prices, saved lists, repeat orders and one monthly invoice.</p></div>
-          <span className="btn btn-primary btn-lg">Open a business account</span>
+          <span className="btn btn-primary btn-lg">For distributors</span>
         </Link>
       </div>
 
@@ -120,7 +120,7 @@ export default async function Home() {
 
       <div className="wrap sec" style={{ paddingTop: 0 }}>
         <div className="duo">
-          <Link className="promo p-teal" href="/help">
+          <Link className="promo p-teal" href="/warehouse">
             <svg className="deco" aria-hidden="true"><use href="#i-store" /></svg>
             <span className="tag tag-white">Click &amp; collect</span>
             <div><h3>Ready in 2 hours</h3><p>Pick up at our warehouse in Alcalá de Henares. No fee.</p></div>
@@ -134,11 +134,11 @@ export default async function Home() {
       </div>
 
       <div className="wrap sec" style={{ paddingTop: 0 }}>
-        <div className="sec-head"><div><span className="eyebrow">Technical guides</span><h2>Get it right the first time</h2></div><Link href="/help">All guides</Link></div>
+        <div className="sec-head"><div><span className="eyebrow">Technical guides</span><h2>Get it right the first time</h2></div><Link href="/guides">All guides</Link></div>
         <div className="guides">
-          <Link className="guide" href="/help"><span className="tag tag-line" style={{ alignSelf: 'flex-start' }}>Fasteners</span><h3>A2 or A4 stainless: when is the extra cost worth it?</h3><p>Coastal air, pools and commercial kitchens. What corrodes what.</p></Link>
-          <Link className="guide" href="/help"><span className="tag tag-line" style={{ alignSelf: 'flex-start' }}>Anchors</span><h3>Nylon, metal or chemical anchor, by wall type</h3><p>Hollow brick, concrete and plasterboard, with a load table.</p></Link>
-          <Link className="guide" href="/help"><span className="tag tag-line" style={{ alignSelf: 'flex-start' }}>Standards</span><h3>DIN 933 vs DIN 931: it comes down to the thread</h3><p>Full or partial thread, and how it changes the joint.</p></Link>
+          <Link className="guide" href="/guides/a2-or-a4-stainless"><span className="tag tag-line" style={{ alignSelf: 'flex-start' }}>Fasteners</span><h3>A2 or A4 stainless: when is the extra cost worth it?</h3><p>Coastal air, pools and commercial kitchens. What corrodes what.</p></Link>
+          <Link className="guide" href="/guides/anchor-by-wall-type"><span className="tag tag-line" style={{ alignSelf: 'flex-start' }}>Anchors</span><h3>Nylon, metal or chemical anchor, by wall type</h3><p>Hollow brick, concrete and plasterboard, with a load table.</p></Link>
+          <Link className="guide" href="/guides/din-933-vs-din-931"><span className="tag tag-line" style={{ alignSelf: 'flex-start' }}>Standards</span><h3>DIN 933 vs DIN 931: it comes down to the thread</h3><p>Full or partial thread, and how it changes the joint.</p></Link>
         </div>
       </div>
     </>
