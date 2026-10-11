@@ -10,14 +10,15 @@ update public.products p set
   description = (select string_agg(h, ' ' order by i) from jsonb_array_elements_text(p.highlights) with ordinality as t(h, i))
     || ' ' || p.name || ' by ' || b.name || '.'
     || case when fc.n > 1 then ' Part of the ' || f.name || ' range, available in ' || fc.n || ' versions.' else '' end,
-  image_url = '/images/products/' || p.slug || '.svg',
+  image_url = 'https://synglipskpbnlknlrqsu.supabase.co/storage/v1/object/public/product-images/' || p.slug || '.svg',
   image_alt = 'Technical drawing of ' || p.name,
   tags = array[p.category, p.subcategory] || case when p.standard is null then '{}'::text[] else array[p.standard] end
     || case when p.discount_pct > 0 then array['offer'] else '{}'::text[] end || case when p.promo_enabled then array['promo'] else '{}'::text[] end
 from public.brands b, public.product_families f, (select family, count(*)::int as n from public.products group by family) fc
 where b.slug = p.brand and f.slug = p.family and fc.family = p.family
-  and p.description is distinct from (select string_agg(h, ' ' order by i) from jsonb_array_elements_text(p.highlights) with ordinality as t(h, i))
+  and (p.description is distinct from (select string_agg(h, ' ' order by i) from jsonb_array_elements_text(p.highlights) with ordinality as t(h, i))
     || ' ' || p.name || ' by ' || b.name || '.'
-    || case when fc.n > 1 then ' Part of the ' || f.name || ' range, available in ' || fc.n || ' versions.' else '' end;
+    || case when fc.n > 1 then ' Part of the ' || f.name || ' range, available in ' || fc.n || ' versions.' else '' end
+    or p.image_url is distinct from 'https://synglipskpbnlknlrqsu.supabase.co/storage/v1/object/public/product-images/' || p.slug || '.svg');
 
 commit;
