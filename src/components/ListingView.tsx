@@ -1,33 +1,31 @@
 import Link from 'next/link';
 import ProductCard from './ProductCard';
 import { FilterPanel, SortSelect } from './FilterPanel';
-import { PAGE_SIZE, applyListing, buildFacets, toQuery } from '@/lib/query';
+import { toQuery } from '@/lib/query';
 import type { Filters, SortKey } from '@/lib/query';
-import type { Catalog, Product } from '@/lib/types';
+import type { Listing } from '@/lib/catalog';
+import type { Brand } from '@/lib/types';
 
 interface Props {
-  catalog: Catalog;
-  pool: Product[];
+  listing: Listing;
+  brands: Brand[];
   basePath: string;
   filters: Filters;
   sort: SortKey;
-  page: number;
   subnav?: { slug: string; name: string; count: number }[];
+  allCount?: number;
   emptyHint?: string;
 }
 
-const chipLabel = (k: string, v: string, catalog: Catalog) =>
-  k === 'brand' ? catalog.brands.find((b) => b.slug === v)?.name || v : k === 'd' || k === 'len' ? `${v} mm` : v;
+const chipLabel = (k: string, v: string, brands: Brand[]) =>
+  k === 'brand' ? brands.find((b) => b.slug === v)?.name || v : k === 'd' || k === 'len' ? `${v} mm` : v;
 
-export default function ListingView({ catalog, pool, basePath, filters, sort, page, subnav, emptyHint }: Props) {
-  const sorted = applyListing(pool, filters, sort);
-  const facets = buildFacets(pool, filters, catalog);
-  const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-  const cur = Math.min(page, pages);
-  const slice = sorted.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE);
+/** One page of products with filters, sort and pagination. The page is computed by the data layer (see lib/catalog.ts). */
+export default function ListingView({ listing, brands, basePath, filters, sort, subnav, allCount, emptyHint }: Props) {
+  const { items: slice, facets, total, pages, page: cur } = listing;
   const active: { label: string; href: string }[] = [];
   (['brand', 'mat', 'std', 'd', 'len'] as const).forEach((k) =>
-    filters[k].forEach((v) => active.push({ label: chipLabel(k, v, catalog), href: basePath + toQuery({ ...filters, [k]: filters[k].filter((x) => x !== v) }, sort, 1) })));
+    filters[k].forEach((v) => active.push({ label: chipLabel(k, v, brands), href: basePath + toQuery({ ...filters, [k]: filters[k].filter((x) => x !== v) }, sort, 1) })));
   if (filters.stock) active.push({ label: 'In stock', href: basePath + toQuery({ ...filters, stock: false }, sort, 1) });
   if (filters.offers) active.push({ label: 'On offer', href: basePath + toQuery({ ...filters, offers: false }, sort, 1) });
   const pageHref = (n: number) => basePath + toQuery(filters, sort, n);
@@ -38,7 +36,7 @@ export default function ListingView({ catalog, pool, basePath, filters, sort, pa
     <>
       {subnav && subnav.length > 0 && (
         <div className="subnav" role="navigation" aria-label="Subcategories">
-          <Link href={basePath + toQuery({ ...filters, sub: undefined }, sort, 1)} aria-current={!filters.sub}>All <small>{pool.length}</small></Link>
+          <Link href={basePath + toQuery({ ...filters, sub: undefined }, sort, 1)} aria-current={!filters.sub}>All <small>{allCount}</small></Link>
           {subnav.map((s) => <Link key={s.slug} href={basePath + toQuery({ ...filters, sub: s.slug }, sort, 1)} aria-current={filters.sub === s.slug}>{s.name} <small>{s.count}</small></Link>)}
         </div>
       )}
@@ -46,7 +44,7 @@ export default function ListingView({ catalog, pool, basePath, filters, sort, pa
         <FilterPanel facets={facets} filters={filters} sort={sort} basePath={basePath} />
         <section aria-label="Products">
           <div className="toolbar">
-            <p className="count" aria-live="polite"><b>{sorted.length}</b> {sorted.length === 1 ? 'product' : 'products'}</p>
+            <p className="count" aria-live="polite"><b>{total.toLocaleString('en')}</b> {total === 1 ? 'product' : 'products'}{pages > 1 && <span className="muted"> · page {cur} of {pages}</span>}</p>
             <SortSelect filters={filters} sort={sort} basePath={basePath} />
           </div>
           {active.length > 0 && (

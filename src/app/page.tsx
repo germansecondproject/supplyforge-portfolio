@@ -1,28 +1,29 @@
 import Link from 'next/link';
 import Finder from '@/components/Finder';
-import type { FinderItem } from '@/components/Finder';
 import QuickOrder from '@/components/QuickOrder';
 import ProductCard from '@/components/ProductCard';
 import Brands from '@/components/Brands';
-import { getCatalog } from '@/lib/catalog';
-import { buyable } from '@/lib/query';
+import { getFinderIndex, getListing, getTaxonomy } from '@/lib/catalog';
 
 const Arrow = () => <svg width="18" height="18" aria-hidden="true"><use href="#i-arrow" /></svg>;
 
 export default async function Home() {
-  const { categories, products } = await getCatalog();
-  const count = (slug: string) => products.filter((p) => p.category === slug).length;
-  const items: FinderItem[] = products
-    .filter((p) => p.art.kind === 'bolt')
-    .map((p) => ({ t: p.art.t!, mat: p.mat!, d: p.d!, L: p.len!, slug: p.slug, stock: p.stock }));
-  const offers = products.filter((p) => p.off > 0 && buyable(p)).sort((a, b) => b.off - a.off || b.reviews - a.reviews).slice(0, 4);
+  const noFilters = { brand: [], mat: [], std: [], d: [], len: [], stock: true, offers: false };
+  const [{ categories, counts, total }, finder, deals] = await Promise.all([
+    getTaxonomy(),
+    getFinderIndex(),
+    getListing({ offersOnly: true, filters: noFilters, sort: 'discount', page: 1, pageSize: 4 }),
+  ]);
+  const count = (slug: string) => (counts[slug] ?? 0).toLocaleString('en');
+  const offers = deals.items;
+  const totalLabel = total.toLocaleString('en');
 
   return (
     <>
       <div className="hero">
         <div className="wrap hero-in">
-          <span className="eyebrow diy">Hardware &amp; DIY · {products.length} products</span>
-          <span className="eyebrow biz">Industrial supply · {products.length} products</span>
+          <span className="eyebrow diy">Hardware &amp; DIY · {totalLabel} products</span>
+          <span className="eyebrow biz">Industrial supply · {totalLabel} products</span>
           <h1 className="diy">Everything you need<br /><em>to finish the job</em></h1>
           <h1 className="biz">The exact size,<br /><em>on site tomorrow</em></h1>
           <p className="diy">Screws, anchors and tools with clear sizes, honest advice and delivery the next day. Pick your size below and we show what is in stock.</p>
@@ -31,10 +32,10 @@ export default async function Home() {
       </div>
 
       <div className="wrap finder-wrap">
-        <Finder items={items} />
+        <Finder rows={finder} />
         <div className="facts" aria-label="Key figures">
           <div><b>94 %</b><span>orders shipped in 24 h</span></div>
-          <div><b>{products.length}</b><span>products in the catalogue</span></div>
+          <div><b>{totalLabel}</b><span>products in the catalogue</span></div>
           <div className="biz"><b>30 days</b><span>to pay by invoice</span></div>
           <div className="diy"><b>100 days</b><span>to change your mind</span></div>
         </div>

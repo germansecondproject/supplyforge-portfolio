@@ -3,17 +3,17 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ListingView from '@/components/ListingView';
-import { getCatalog } from '@/lib/catalog';
+import { getListing, getTaxonomy } from '@/lib/catalog';
 import { parseParams } from '@/lib/query';
 
 export async function generateStaticParams() {
-  const { categories } = await getCatalog();
+  const { categories } = await getTaxonomy();
   return categories.map((c) => ({ category: c.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps<'/c/[category]'>): Promise<Metadata> {
   const { category } = await params;
-  const c = (await getCatalog()).categories.find((x) => x.slug === category);
+  const c = (await getTaxonomy()).categories.find((x) => x.slug === category);
   return c ? { title: c.name, description: c.blurb } : {};
 }
 
@@ -29,13 +29,13 @@ export default function Page(props: PageProps<'/c/[category]'>) {
 
 async function Content({ params, searchParams }: PageProps<'/c/[category]'>) {
   const { category } = await params;
-  const catalog = await getCatalog();
-  const cat = catalog.categories.find((c) => c.slug === category);
+  const tax = await getTaxonomy();
+  const cat = tax.categories.find((c) => c.slug === category);
   if (!cat) notFound();
   const { filters, sort, page } = parseParams(await searchParams);
-  const pool = catalog.products.filter((p) => p.category === cat.slug);
-  const subs = catalog.subcategories.filter((s) => s.category === cat.slug).map((s) => ({ slug: s.slug, name: s.name, count: pool.filter((p) => p.sub === s.slug).length }));
+  const subs = tax.subcategories.filter((s) => s.category === cat.slug).map((s) => ({ slug: s.slug, name: s.name, count: tax.counts[cat.slug + '/' + s.slug] ?? 0 })).filter((s) => s.count > 0);
   const sub = subs.find((s) => s.slug === filters.sub);
+  const listing = await getListing({ category: cat.slug, filters: { ...filters, sub: sub?.slug }, sort, page });
   return (
     <>
       <nav className="crumbs" aria-label="Breadcrumb">
@@ -46,7 +46,7 @@ async function Content({ params, searchParams }: PageProps<'/c/[category]'>) {
         <h1>{sub ? sub.name : cat.name}</h1>
         <p className="muted">{cat.blurb}</p>
       </div>
-      <ListingView catalog={catalog} pool={pool} basePath={`/c/${cat.slug}`} filters={filters} sort={sort} page={page} subnav={subs} />
+      <ListingView listing={listing} brands={tax.brands} basePath={`/c/${cat.slug}`} filters={filters} sort={sort} subnav={subs} allCount={tax.counts[cat.slug] ?? 0} />
     </>
   );
 }

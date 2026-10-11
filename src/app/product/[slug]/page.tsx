@@ -6,20 +6,20 @@ import type { GalleryView } from '@/components/Gallery';
 import Tabs from '@/components/Tabs';
 import BuyBox from '@/components/BuyBox';
 import ProductCard from '@/components/ProductCard';
-import { getCatalog } from '@/lib/catalog';
+import { getPopularSlugs, getProduct, getProductPage, getTaxonomy } from '@/lib/catalog';
 import { artSVG } from '@/lib/art';
-import { boughtTogether, buyable, familyOf, offerPriceOf, similarSizes, variantGroups } from '@/lib/query';
-import { GEO, MATGRADE, PITCH, TYPES, boltBoxWeight, tl } from '@/lib/standards';
+import { buyable, offerPriceOf, toMember, variantGroups } from '@/lib/query';
+import { GEO, MATGRADE, PITCH, TYPES, boltBoxWeight, pzFor, tl } from '@/lib/standards';
 import type { Product } from '@/lib/types';
 
+// The most popular products are prerendered at build time; the rest of the 10,000 render on first visit and are then cached.
 export async function generateStaticParams() {
-  const { products } = await getCatalog();
-  return products.map((p) => ({ slug: p.slug }));
+  return (await getPopularSlugs(48)).map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: PageProps<'/product/[slug]'>): Promise<Metadata> {
   const { slug } = await params;
-  const p = (await getCatalog()).products.find((x) => x.slug === slug);
+  const p = await getProduct(slug);
   if (!p) return {};
   return { title: p.name, description: `${p.specs.join(' · ')}. SKU ${p.ref}.`, openGraph: { images: [{ url: p.image, alt: p.image_alt }] } };
 }
@@ -33,12 +33,12 @@ function galleryFor(p: Product): { views: GalleryView[]; facts: [string, string]
       views: [
         { label: 'Side view with dimensions', svg: artSVG(p.art, { H: 270, dims: true, ...dark }, title) },
         { label: 'Head view', svg: artSVG(p.art, { H: 270, view: 'top', ...dark }, title) },
-        { label: `Box of ${p.pack} pieces`, svg: artSVG(p.art, { H: 270, view: 'pack' }, title) },
+        { label: `${p.tier ? 'Box' : 'Pack'} of ${p.pack} pieces`, svg: artSVG(p.art, { H: 270, view: 'pack', ref: p.ref }, title) },
       ],
       facts: [
         ['Thread', tl(t, p.d) + (t === 'wood' ? '' : ' × ' + PITCH[p.d])],
         ['Strength', MATGRADE[p.mat]],
-        [t === 'hex' ? 'Spanner' : t === 'wood' ? 'Drive' : 'Hex key', t === 'hex' ? 'AF ' + g.key + ' mm' : t === 'wood' ? (p.d >= 6 ? 'PZ3' : 'PZ2') : g.key + ' mm'],
+        [t === 'hex' ? 'Spanner' : t === 'wood' ? 'Drive' : 'Hex key', t === 'hex' ? 'AF ' + g.key + ' mm' : t === 'wood' ? pzFor(p.d) : g.key + ' mm'],
       ],
     };
   }
@@ -52,17 +52,13 @@ export default function Page(props: PageProps<'/product/[slug]'>) {
 
 async function Content({ params }: PageProps<'/product/[slug]'>) {
   const { slug } = await params;
-  const catalog = await getCatalog();
-  const p = catalog.products.find((x) => x.slug === slug);
-  if (!p) notFound();
-  const cat = catalog.categories.find((c) => c.slug === p.category)!;
-  const sub = catalog.subcategories.find((s) => s.category === p.category && s.slug === p.sub);
-  const brand = catalog.brands.find((b) => b.slug === p.brand)?.name || '';
-  const groups = variantGroups(catalog.products, p);
-  const fam = familyOf(catalog.products, p);
-  const together = boughtTogether(catalog, p);
-  const similar = similarSizes(catalog.products, p);
-  const family = catalog.families.find((x) => x.slug === p.family);
+  const [data, tax] = await Promise.all([getProductPage(slug), getTaxonomy()]);
+  if (!data) notFound();
+  const { product: p, members: fam, together, similar, family } = data;
+  const cat = tax.categories.find((c) => c.slug === p.category)!;
+  const sub = tax.subcategories.find((s) => s.category === p.category && s.slug === p.sub);
+  const brand = tax.brands.find((b) => b.slug === p.brand)?.name || '';
+  const groups = variantGroups(fam, toMember(p), p.art.t === 'wood');
   const { views, facts } = galleryFor(p);
   const isBolt = p.art.kind === 'bolt' && !!p.art.t;
   const pr = offerPriceOf(p);
@@ -76,7 +72,7 @@ async function Content({ params }: PageProps<'/product/[slug]'>) {
         <p className="muted" style={{ marginBottom: 14, maxWidth: '62ch' }}>Nominal dimensions in millimetres. Select a size to load it into the product above.</p>
         <div className="dim-table">
           <table className="spec" style={{ maxWidth: 'none' }}>
-            <thead><tr><th scope="col">Thread</th><th scope="col">Pitch</th><th scope="col">k</th><th scope="col">{t === 'hex' ? 'AF' : 'Head Ø'}</th><th scope="col">Weight per box · L={p.len}</th></tr></thead>
+            <thead><tr><th scope="col">Thread</th><th scope="col">Pitch</th><th scope="col">k</th><th scope="col">{t === 'hex' ? 'AF' : 'Head Ø'}</th><th scope="col">Weight per {p.tier ? 'box' : 'pack'} of {p.pack} · L={p.len}</th></tr></thead>
             <tbody>
               {diams.map((d) => {
                 const g = GEO[t](d);
@@ -86,7 +82,7 @@ async function Content({ params }: PageProps<'/product/[slug]'>) {
                     <th scope="row" style={{ width: 'auto' }}>
                       {target && d !== p.d ? <Link href={`/product/${target.slug}`} style={{ fontFamily: 'var(--f-mono)', color: 'var(--ink)' }}>{tl(t, d)}</Link> : <span className="mono" style={{ color: 'var(--ink)' }}>{tl(t, d)}</span>}
                     </th>
-                    <td>{t === 'wood' ? '—' : PITCH[d]}</td><td>{g.k}</td><td>{g.hw}</td><td>{boltBoxWeight(t, d, p.len!).toFixed(2)} kg</td>
+                    <td>{t === 'wood' ? '—' : PITCH[d]}</td><td>{g.k}</td><td>{g.hw}</td><td>{boltBoxWeight(t, d, p.len!, p.pack).toFixed(2)} kg</td>
                   </tr>
                 );
               })}

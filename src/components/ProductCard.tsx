@@ -3,6 +3,7 @@ import Art from './Art';
 import AddButton from './AddButton';
 import { Price, VatLabel } from './Price';
 import { buyable, offerPriceOf } from '@/lib/query';
+import { toLine } from '@/lib/pricing';
 import type { Product } from '@/lib/types';
 
 const Stars = () => (
@@ -36,7 +37,7 @@ export default function ProductCard({ p }: { p: Product }) {
           </small>
         </div>
       </div>
-      <div className="card-foot"><AddButton p={p} /></div>
+      <div className="card-foot"><AddButton line={toLine(p)} unavailable={p.unavailable} out={!buyable(p)} /></div>
     </article>
   );
 }

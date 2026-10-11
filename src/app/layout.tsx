@@ -12,7 +12,7 @@ import Providers from '@/components/Providers';
 import Sprites from '@/components/Sprites';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { getCatalog } from '@/lib/catalog';
+import { getTaxonomy } from '@/lib/catalog';
 
 export const metadata: Metadata = {
   title: { default: 'SupplyForge · Fasteners, fixings and tools', template: '%s · SupplyForge' },
@@ -24,7 +24,7 @@ export const viewport: Viewport = { width: 'device-width', initialScale: 1, them
 const boot = `try{var d=document.documentElement,t=localStorage.getItem('roscado.theme');if(t)d.setAttribute('data-theme',t);d.dataset.mode=localStorage.getItem('roscado.mode')==='biz'?'biz':'diy'}catch(e){}`;
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const { categories } = await getCatalog();
+  const { categories } = await getTaxonomy();
   return (
     <html lang="en" data-mode="diy" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: boot }} /></head>
