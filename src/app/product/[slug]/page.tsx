@@ -21,7 +21,11 @@ export async function generateMetadata({ params }: PageProps<'/product/[slug]'>)
   const { slug } = await params;
   const p = await getProduct(slug);
   if (!p) return {};
-  return { title: p.name, description: `${p.specs.join(' · ')}. SKU ${p.ref}.`, openGraph: { images: [{ url: p.image, alt: p.image_alt }] } };
+  return {
+    title: p.name, description: `${p.specs.join(' · ')}. SKU ${p.ref}.`,
+    alternates: { canonical: `/product/${p.slug}` },
+    openGraph: { images: [{ url: p.image, alt: p.image_alt }] },
+  };
 }
 
 function galleryFor(p: Product): { views: GalleryView[]; facts: [string, string][] } {
@@ -114,17 +118,11 @@ async function Content({ params }: PageProps<'/product/[slug]'>) {
       </table>
     ) },
     ...(sizeChart ? [{ id: 'dim', label: 'Size chart', content: sizeChart }] : []),
-    { id: 'doc', label: 'Documents', content: (
-      <div className="docs">
-        {['Data sheet (PDF)', 'Material certificate 3.1', 'Declaration of performance (CE)'].map((d) => (
-          <div className="doc" key={d} aria-disabled="true"><span>{d}</span><span className="mono muted">Sample</span></div>
-        ))}
-      </div>
-    ) },
     { id: 'rev', label: `Reviews (${p.reviews})`, content: (
       <div className="twocol">
         <div style={{ display: 'flex', gap: 16, alignItems: 'baseline' }}><b style={{ font: '700 3rem/1 var(--f-display)' }}>{p.rating}</b><span className="muted">out of 5 · {p.reviews} reviews</span></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p className="muted" style={{ fontSize: '.8125rem' }}>Rating and reviews are sample content for this demo store.</p>
           <div><b>Consistent quality between batches</b><p className="muted">Used on site for two seasons and no complaints. Sizes match the data sheet. <span className="mono" style={{ fontSize: '.75rem' }}>— Installer, Guadalajara</span></p></div>
           <div><b>Good price at volume</b><p className="muted">The price drops noticeably on larger orders. Arrived next day as promised. <span className="mono" style={{ fontSize: '.75rem' }}>— Workshop, Madrid</span></p></div>
         </div>
@@ -135,13 +133,12 @@ async function Content({ params }: PageProps<'/product/[slug]'>) {
   const ld = {
     '@context': 'https://schema.org', '@type': 'Product', name: p.name, sku: p.ref, mpn: String(p.item_code), gtin13: p.ean, image: p.image, description: p.description, brand: { '@type': 'Brand', name: brand },
     weight: { '@type': 'QuantitativeValue', value: p.weight_kg, unitCode: 'KGM' },
-    aggregateRating: { '@type': 'AggregateRating', ratingValue: p.rating, reviewCount: p.reviews },
     offers: { '@type': 'Offer', priceCurrency: 'EUR', price: pr.toFixed(2), availability: buyable(p) ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock' },
   };
 
   return (
     <div className="wrap pdp-page">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld).replace(/</g, '\\u003c') }} />
       <nav className="crumbs" aria-label="Breadcrumb">
         <Link href="/">Home</Link><span aria-hidden="true">/</span>
         <Link href={`/c/${cat.slug}`}>{cat.name}</Link><span aria-hidden="true">/</span>
@@ -169,7 +166,7 @@ async function Content({ params }: PageProps<'/product/[slug]'>) {
                 <div className="cfg-h"><i>{i + 1}</i><span id={'o-' + g.key}>{g.title}</span></div>
                 <div className="opt-row" role="group" aria-labelledby={'o-' + g.key}>
                   {g.options.map((o) => (
-                    <Link key={o.value} href={`/product/${o.slug}`} className="chip" aria-pressed={o.selected} aria-disabled={o.disabled || undefined} aria-label={o.disabled ? `${o.label}, out of stock` : undefined} scroll={false}>
+                    <Link key={o.value} href={`/product/${o.slug}`} className="chip" aria-current={o.selected || undefined} aria-disabled={o.disabled || undefined} aria-label={o.disabled ? `${o.label}, out of stock` : undefined} scroll={false}>
                       {o.label}{o.low && <small>Few left</small>}
                     </Link>
                   ))}

@@ -6,7 +6,7 @@ import ListingSkeleton from '@/components/ListingSkeleton';
 import { getListing, getTaxonomy } from '@/lib/catalog';
 import { parseParams } from '@/lib/query';
 
-export const metadata: Metadata = { title: 'Deals' };
+export const metadata: Metadata = { title: 'Deals', alternates: { canonical: '/deals' } };
 
 export default function Page(props: PageProps<'/deals'>) {
   return (

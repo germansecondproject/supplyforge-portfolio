@@ -17,7 +17,6 @@ export function DistributorButton() {
       type="button"
       className="dist"
       aria-pressed={on}
-      aria-label="Distributors: business prices and quick order"
       title={on ? 'Back to Home & DIY prices' : 'Switch to distributor prices, quick order and invoice terms'}
       onClick={() => setMode(on ? 'diy' : 'biz')}
     >

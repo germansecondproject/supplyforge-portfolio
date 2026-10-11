@@ -43,6 +43,7 @@ export default function ListingView({ listing, brands, basePath, filters, sort, 
       <div className="list-grid">
         <FilterPanel facets={facets} filters={filters} sort={sort} basePath={basePath} />
         <section aria-label="Products">
+          <h2 className="sr">Products</h2>
           <div className="toolbar">
             <p className="count" aria-live="polite"><b>{total.toLocaleString('en')}</b> {total === 1 ? 'product' : 'products'}{pages > 1 && <span className="muted"> · page {cur} of {pages}</span>}</p>
             <SortSelect filters={filters} sort={sort} basePath={basePath} />

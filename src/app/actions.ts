@@ -40,7 +40,7 @@ export interface OrderInput {
   pay: 'card' | 'transfer' | 'invoice';
   customer: Record<string, string>;
   lines: { ref: string; qty: number }[];
-  /** the signed-in customer's access token, so the order is saved to their account */
+  /** the signed-in customer's access token, so the order is saved to their account; none for a guest */
   token?: string | null;
 }
 export interface OrderResult {
@@ -67,6 +67,8 @@ function friendly(msg: string): string {
     case 'invoice_requires_business': return 'Invoice payment is only available in Business mode.';
     case 'sign_in_required': return 'Sign in to place your order.';
     case 'rate_limited': return 'You have placed 10 orders in the last hour. Please try again later.';
+    case 'guest_busy': return 'Guest checkout is busy right now. Sign in or try again in a while.';
+    case 'invalid_customer': return 'Some delivery details are too long. Shorten them and try again.';
     case 'invalid_quantity': return `Invalid quantity for ${a}.`;
     default: return 'We could not place the order. Please try again.';
   }
@@ -82,8 +84,7 @@ export async function placeOrder(input: OrderInput): Promise<{ ok: true; order: 
   if (lines.some((l) => !(l.qty >= 1 && l.qty <= 9999))) return { ok: false, error: 'Invalid quantity.' };
 
   if (supabaseConfigured()) {
-    // orders belong to an account: the database only lets signed-in customers call place_order()
-    if (!input.token) return { ok: false, error: friendly('sign_in_required') };
+    // signed in: the order is saved to the account; as a guest it joins one later if the email is confirmed
     const { data, error } = await supabaseClient(input.token).rpc('place_order', {
       p_mode: input.mode, p_customer: input.customer, p_ship: input.ship, p_payment: input.pay, p_lines: lines.map((l) => ({ sku: l.ref, qty: l.qty })),
     });

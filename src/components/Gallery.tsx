@@ -16,7 +16,7 @@ export default function Gallery({ views, facts }: { views: GalleryView[]; facts:
         <div className="thumbs" role="group" aria-label="Product views">
           {views.map((v, n) => (
             <button key={v.label} type="button" className="thumb" aria-pressed={n === i} aria-label={v.label} onClick={() => setI(n)}
-              dangerouslySetInnerHTML={{ __html: v.svg.replace('<svg ', '<svg aria-hidden="true" ').replace(/role="img"/, '') }} />
+              dangerouslySetInnerHTML={{ __html: v.svg.replace('<svg ', '<svg aria-hidden="true" ').replace(/role="img"/, '').replace(/<text[\s\S]*?<\/text>/g, '') }} />
           ))}
         </div>
       )}

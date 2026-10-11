@@ -15,7 +15,8 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps<'/c/[category]'>): Promise<Metadata> {
   const { category } = await params;
   const c = (await getTaxonomy()).categories.find((x) => x.slug === category);
-  return c ? { title: c.name, description: c.blurb } : {};
+  // filtered, sorted and paged variants all point at the category itself
+  return c ? { title: c.name, description: c.blurb, alternates: { canonical: `/c/${c.slug}` } } : {};
 }
 
 export default function Page(props: PageProps<'/c/[category]'>) {

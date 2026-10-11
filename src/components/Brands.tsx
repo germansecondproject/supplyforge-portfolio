@@ -15,7 +15,7 @@ export default function Brands() {
   return (
     <div className="brands" aria-label="Brands">
       {LOGOS.map((b) => (
-        <Link key={b.name} className="brand" href={`/search?q=${encodeURIComponent(b.q)}`} aria-label={b.name}>
+        <Link key={b.name} className="brand" href={`/search?q=${encodeURIComponent(b.q)}`}>
           <svg viewBox="0 0 220 52" role="img" aria-label={b.name} dangerouslySetInnerHTML={{ __html: b.svg }} />
         </Link>
       ))}
