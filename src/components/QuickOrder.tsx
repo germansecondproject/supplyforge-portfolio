@@ -6,6 +6,7 @@ import type { PartCheck } from '@/app/actions';
 import { useShop } from './Providers';
 import { Price } from './Price';
 import type { CartLine } from '@/lib/types';
+import { parseQuickOrder } from '@/lib/paste';
 
 const SAMPLE = `SF-933-A2-8x40, 2
 SF-912-BK-6x30, 5
@@ -14,20 +15,13 @@ SF-933-A2-8x45, 1`;
 
 interface Row { raw: string; q: number; err?: string; part?: PartCheck }
 
-function parse(text: string) {
-  return text.split(/\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
-    const m = /^([A-Za-z0-9\-]+)\s*[,;x×\t ]\s*(\d+)$/.exec(l);
-    return m ? { raw: m[1], q: Math.min(9999, +m[2]), bad: false } : { raw: l, q: 0, bad: true };
-  });
-}
-
 export default function QuickOrder({ id = 'quick-order', className = '' }: { id?: string; className?: string }) {
   const { addLine, toast } = useShop();
   const [text, setText] = useState(SAMPLE);
   const [rows, setRows] = useState<Row[]>([]);
 
   useEffect(() => {
-    const parsed = parse(text);
+    const parsed = parseQuickOrder(text);
     const refs = parsed.filter((p) => !p.bad).map((p) => p.raw);
     let live = true;
     const t = setTimeout(async () => {
@@ -58,9 +52,9 @@ export default function QuickOrder({ id = 'quick-order', className = '' }: { id?
       <div className="qo">
         <div>
           <div><span className="eyebrow">For business accounts</span><h2>Quick order</h2></div>
-          <p className="muted">Paste one part number per line with the number of boxes. We check stock instantly and add valid lines to your basket.</p>
+          <p className="muted">Type one part number per line with the number of boxes, or copy the part number and quantity columns from Excel and paste them here. We check stock instantly and add valid lines to your basket.</p>
           <div className="field"><label htmlFor="qoText">Part numbers and quantities</label>
-            <textarea className="input" id="qoText" spellCheck={false} value={text} onChange={(e) => setText(e.target.value)} /></div>
+            <textarea className="input" id="qoText" placeholder={'SF-933-A2-8x40\t2\nSF-912-BK-6x30\t5'} spellCheck={false} value={text} onChange={(e) => setText(e.target.value)} /></div>
           <div><button className="btn btn-primary" type="button" disabled={!ok.length} onClick={add}>{ok.length ? `Add ${ok.length} ${ok.length === 1 ? 'line' : 'lines'} to basket` : 'Add to basket'}</button></div>
         </div>
         <div className="side">
@@ -71,7 +65,7 @@ export default function QuickOrder({ id = 'quick-order', className = '' }: { id?
               ? <div className="qo-line bad" key={i}><span>{r.raw}</span><span className="st bad-t">{r.err}</span><span></span></div>
               : <div className="qo-line" key={i}><span>{r.raw}</span><span className="st ok-t">In stock</span><span className="num">{r.q} × <Price value={r.part!.list! * (1 - r.part!.off!)} /></span></div>)}
           </div>
-          <p className="muted" style={{ fontSize: '.8125rem', marginTop: 'auto' }}>Format: <span className="mono">PART NUMBER, BOXES</span>. You can also upload a CSV from your account.</p>
+          <p className="muted" style={{ fontSize: '.8125rem', marginTop: 'auto' }}>Format: <span className="mono">PART NUMBER, BOXES</span>. From a spreadsheet, extra columns and a header row are ignored; a line without a quantity counts as 1 box. Up to 60 lines.</p>
         </div>
       </div>
     </div>

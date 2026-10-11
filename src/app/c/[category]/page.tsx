@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ListingView from '@/components/ListingView';
+import ListingSkeleton from '@/components/ListingSkeleton';
 import { getListing, getTaxonomy } from '@/lib/catalog';
 import { parseParams } from '@/lib/query';
 
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: PageProps<'/c/[category]'>): 
 export default function Page(props: PageProps<'/c/[category]'>) {
   return (
     <div className="wrap" style={{ paddingBottom: 8 }}>
-      <Suspense fallback={<p className="muted" style={{ padding: 40 }}>Loading products…</p>}>
+      <Suspense fallback={<ListingSkeleton label="Loading products…" subnav />}>
         <Content {...props} />
       </Suspense>
     </div>

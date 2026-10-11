@@ -10,11 +10,12 @@ type Key = 'brand' | 'mat' | 'std' | 'd' | 'len';
 
 export function FilterPanel({ facets, filters, sort, basePath }: { facets: Facet[]; filters: Filters; sort: SortKey; basePath: string }) {
   const router = useRouter();
-  const [open, setOpen] = useState(true);
+  // Filters render collapsed (as narrow screens show them) and open on wide screens after load: opening the side
+  // column does not move the products, while collapsing it on a phone would push the whole grid up.
+  const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
-  // Desktop shows filters open; on narrow screens they start collapsed.
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (window.matchMedia('(max-width:860px)').matches) setOpen(false); }, []);
+  useEffect(() => { if (!window.matchMedia('(max-width:860px)').matches) setOpen(true); }, []);
 
   const go = (f: Filters) => start(() => router.push(basePath + toQuery(f, sort, 1), { scroll: false }));
   const toggle = (k: Key, v: string) => {
