@@ -81,7 +81,7 @@ function finish(p: Omit<Base, 'id' | 'slug' | 'rating' | 'reviews' | 'off' | 'st
 }
 
 function sold(p: { pack: number; unit: string; tier: boolean }) {
-  return p.tier ? `Box of ${p.pack}` : p.pack > 1 ? `Pack of ${p.pack}` : `Sold per ${p.unit}`;
+  return p.tier ? `Box of ${p.pack}` : p.pack > 1 ? `Pack of ${p.pack}` : p.unit === 'each' ? 'Sold individually' : `Sold per ${p.unit}`;
 }
 
 /* ---------- fasteners: bolts and screws ---------- */
@@ -375,13 +375,15 @@ const products: Product[] = bases.map((b) => {
     siblings > 0 ? `Part of the ${FAMILY_NAME[family] || BOLT_NAMES[family] || b.name} range, available in ${siblings + 1} versions.` : '',
   ].filter(Boolean).join(' ');
 
+  const { kg: rawKg, size, ...base } = b; // generator-only fields
+  void rawKg;
   return {
-    ...b,
+    ...base,
     item_code: 200000 + ((b.id * 7919) % 700000),
     ean: ean13('8437001' + String(b.id).padStart(5, '0')),
     description,
     family,
-    size_label: b.size,
+    size_label: size,
     min_order_qty: 1,
     unavailable,
     promo,
