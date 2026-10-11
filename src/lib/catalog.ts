@@ -256,3 +256,20 @@ export async function getFinderIndex(): Promise<FinderRow[]> {
   }
   return (must(await supabaseClient().rpc('finder_index')) as [string, string, number | string, number, number][]).map(([t, m, d, l, s]) => [t, m, Number(d), l, s]);
 }
+
+/* ---------- sitemap ---------- */
+/** Every product's slug and last change, for sitemap.xml. Read 1000 rows at a time (the API's page limit). */
+export async function getProductSlugs(): Promise<{ slug: string; updated: string | null }[]> {
+  'use cache';
+  cacheLife('hours');
+  cacheTag('catalog');
+  if (!supabaseConfigured()) return sample.products.map((p) => ({ slug: p.slug, updated: null }));
+  const sb = supabaseClient();
+  const out: { slug: string; updated: string | null }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const rows = must(await sb.from('products').select('slug, updated_at').order('id').range(from, from + 999)) as { slug: string; updated_at: string }[];
+    out.push(...rows.map((r) => ({ slug: r.slug, updated: r.updated_at })));
+    if (rows.length < 1000) break;
+  }
+  return out;
+}

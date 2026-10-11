@@ -52,8 +52,9 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
   const [payErr, setPayErr] = useState('');
   const [pending, start] = useTransition();
   const { available: authOn, user, profile, token } = useAuth();
-  // with accounts switched on, checkout past the basket needs a signed-in customer
-  const gate = authOn && !user && (step === 2 || step === 3);
+  // with accounts switched on, checkout asks once: sign in, or carry on as a guest
+  const [guest, setGuest] = useState(false);
+  const gate = authOn && !user && !guest && (step === 2 || step === 3);
   const filled = useRef(false);
 
   // signed-in customers start from the details saved on their account
@@ -200,15 +201,20 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <Link className="btn btn-line" href="/c/fasteners">Continue shopping</Link>
-                <button className="btn btn-primary btn-lg" type="button" onClick={() => go(2)}>{authOn && !user ? 'Sign in to check out' : 'Continue to delivery'}</button>
+                <button className="btn btn-primary btn-lg" type="button" onClick={() => go(2)}>{authOn && !user && !guest ? 'Check out' : 'Continue to delivery'}</button>
               </div>
             </div>
           )}
 
           {ready && cart.length > 0 && gate && (
-            <div>
-              <SignIn title="Sign in to place your order" />
-              <div style={{ marginTop: 12 }}><button className="btn btn-line" type="button" onClick={() => go(1)}>Back to basket</button></div>
+            <div className="guest-choice">
+              <div className="panel">
+                <h2>Check out as a guest</h2>
+                <p className="muted">No account needed. We send the confirmation to your email; create an account later with the same email and this order appears in it.</p>
+                <button className="btn btn-primary btn-lg" type="button" onClick={() => setGuest(true)}>Continue as guest</button>
+              </div>
+              <SignIn title="Or sign in" />
+              <div><button className="btn btn-line" type="button" onClick={() => go(1)}>Back to basket</button></div>
             </div>
           )}
 
@@ -302,6 +308,7 @@ export default function CartView({ recRefs, recCards }: { recRefs: string[]; rec
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <Link className="btn btn-primary" href="/">Continue shopping</Link>
                 {user && order.res.source === 'supabase' && <Link className="btn btn-line" href={'/account#' + order.res.number}>See it in your account</Link>}
+                {authOn && !user && order.res.source === 'supabase' && <Link className="btn btn-line" href="/account">Create an account to track it</Link>}
               </div>
             </div>
           )}

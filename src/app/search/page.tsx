@@ -6,7 +6,7 @@ import ListingSkeleton from '@/components/ListingSkeleton';
 import { getListing, getTaxonomy } from '@/lib/catalog';
 import { parseParams, parseSearch } from '@/lib/query';
 
-export const metadata: Metadata = { title: 'Search' };
+export const metadata: Metadata = { title: 'Search', robots: { index: false, follow: true } };
 
 export default function Page(props: PageProps<'/search'>) {
   return (

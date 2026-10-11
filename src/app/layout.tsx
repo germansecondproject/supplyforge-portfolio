@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import '@fontsource/barlow-condensed/600.css';
-import '@fontsource/barlow-condensed/700.css';
-import '@fontsource/ibm-plex-sans/400.css';
-import '@fontsource/ibm-plex-sans/500.css';
-import '@fontsource/ibm-plex-sans/600.css';
-import '@fontsource/ibm-plex-mono/400.css';
-import '@fontsource/ibm-plex-mono/500.css';
-import '@fontsource/ibm-plex-mono/600.css';
+import '@fontsource/barlow-condensed/latin-600.css';
+import '@fontsource/barlow-condensed/latin-700.css';
+import '@fontsource/ibm-plex-sans/latin-400.css';
+import '@fontsource/ibm-plex-sans/latin-500.css';
+import '@fontsource/ibm-plex-sans/latin-600.css';
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import '@fontsource/ibm-plex-mono/latin-500.css';
+import '@fontsource/ibm-plex-mono/latin-600.css';
 import './globals.css';
 import Providers from '@/components/Providers';
 import AuthProvider from '@/components/Auth';
@@ -14,8 +14,10 @@ import Sprites from '@/components/Sprites';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { getTaxonomy } from '@/lib/catalog';
+import { SITE_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: 'SupplyForge · Fasteners, fixings and tools', template: '%s · SupplyForge' },
   description: 'Portfolio e-commerce for fasteners, anchors and tools, with a Home & DIY mode and a Business mode.',
 };
