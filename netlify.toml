@@ -1,0 +1,6 @@
+[build]
+  command = "npm run build"
+  # The Netlify Next.js runtime is detected automatically; no publish directory is needed.
+
+[build.environment]
+  NODE_VERSION = "22"
