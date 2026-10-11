@@ -27,7 +27,7 @@ as $$
   )
   select count(*)::int from linked;
 $$;
-revoke all on function public.link_guest_orders() from public;
+revoke all on function public.link_guest_orders() from public, anon;
 grant execute on function public.link_guest_orders() to authenticated;
 
 -- place_order() now records the signed-in customer, if any.
